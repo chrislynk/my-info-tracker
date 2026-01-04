@@ -12,7 +12,8 @@
   "dependencies": {
     "aws-amplify": "^6.15.9",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0"
   },
   "devDependencies": {
     "@aws-amplify/backend": "^1.19.0",

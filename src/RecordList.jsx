@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
 import { generateClient } from "aws-amplify/data";
 import { getUrl, uploadData, remove } from "aws-amplify/storage";
-
+import ReactMarkdown from "react-markdown";
 
 const client = generateClient();
-
-
 
 function toLocalInputValue(iso) {
   if (!iso) return "";
@@ -24,14 +22,27 @@ function toIsoOrNull(local) {
 export default function RecordList() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [newImageFile, setNewImageFile] = useState(null);
   const [draft, setDraft] = useState({});
 
+  const [searchItem, setSearchItem] = useState('');
+  const [filteredRecords, setFilteredRecords] = useState(records)
+  const searchChange = (e) => {
+    const searchTerm = e.target.value;
+    setSearchItem(searchTerm)
+
+    const filteredItems =  records.filter((record) => 
+      record.title.toLowerCase().includes(searchTerm.toLowerCase()) 
+    );
+    setFilteredRecords(filteredItems)
+  }
+
   async function load() {
     setLoading(true);
-    const { data } = await client.models.Record.list({ limit: 100 });
-
+    const { data } = await client.models.Record.list({ limit: 500 })
+    setFilteredRecords(data);
     const withUrls = await Promise.all(
       (data ?? []).map(async (r) => {
         if (!r.imageKey) return r;
@@ -53,7 +64,11 @@ export default function RecordList() {
     const handler = () => load();
     window.addEventListener("records:changed", handler);
     return () => window.removeEventListener("records:changed", handler);
-  }, []);
+  }, [ ]);
+
+  function selectId(r) {
+    setSelectedId(r.id);
+  }
 
   function startEdit(r) {
     setEditingId(r.id);
@@ -64,9 +79,9 @@ export default function RecordList() {
       end: toLocalInputValue(r.end),
       notes: r.notes ?? "",
       tags: (r.tags ?? []).join(", "),
-      entryKind: r.entryKind ?? "",
+      template: r.template ?? "",
       status: r.status ?? "",
-      collection: r.collection ?? "",
+      grouping: r.grouping ?? "",
     });
   }
 
@@ -99,9 +114,9 @@ export default function RecordList() {
         tags: draft.tags
           ? draft.tags.split(",").map((t) => t.trim()).filter(Boolean)
           : null,
-        template: draft.entryKind || null,
+        template: draft.template || null,
         status: draft.status || null,
-        grouping: draft.collection || null,
+        grouping: draft.grouping || null,
         imageKey: nextImageKey,
       });
 
@@ -110,6 +125,7 @@ export default function RecordList() {
         await remove({ path: record.imageKey });
       }
 
+      setSelectedId(null);
       setEditingId(null);
       setDraft({});
       setNewImageFile(null);
@@ -149,108 +165,146 @@ export default function RecordList() {
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      {records.map((r) => (
+      <input
+        type="text"
+        value={searchItem}
+        onChange={searchChange}
+        placeholder='Type to search'
+      />
+      {filteredRecords.map((r) => (
         <div
           key={r.id}
           style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}
         >
-          {editingId === r.id ? (
-            <>
-              <input
-                value={draft.title}
-                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                style={{ width: "100%", padding: 8, marginBottom: 8 }}
-              />
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {selectedId === r.id ? (
+            editingId === r.id ? (
+              <>
                 <input
-                  type="datetime-local"
-                  value={draft.start}
-                  onChange={(e) => setDraft({ ...draft, start: e.target.value })}
+                  value={draft.title}
+                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                  style={{ width: "100%", marginBottom: 8 }}
                 />
-                <input
-                  type="datetime-local"
-                  value={draft.end}
-                  onChange={(e) => setDraft({ ...draft, end: e.target.value })}
-                />
-              </div>
 
-              <textarea
-                value={draft.notes}
-                onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-                rows={3}
-                style={{ width: "100%", marginTop: 8 }}
-              />
-
-              <input
-                placeholder="tags (comma-separated)"
-                value={draft.tags}
-                onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
-                style={{ width: "100%", marginTop: 8 }}
-              />
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 8 }}>
-                <input
-                  placeholder="entry kind"
-                  value={draft.entryKind}
-                  onChange={(e) => setDraft({ ...draft, entryKind: e.target.value })}
-                />
-                <input
-                  placeholder="status"
-                  value={draft.status}
-                  onChange={(e) => setDraft({ ...draft, status: e.target.value })}
-                />
-                <input
-                  placeholder="collection"
-                  value={draft.collection}
-                  onChange={(e) => setDraft({ ...draft, collection: e.target.value })}
-                />
-              </div>
-
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
-                  Replace image (optional)
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <input
+                    type="datetime-local"
+                    value={draft.start}
+                    onChange={(e) => setDraft({ ...draft, start: e.target.value })}
+                  />
+                  <input
+                    type="datetime-local"
+                    value={draft.end}
+                    onChange={(e) => setDraft({ ...draft, end: e.target.value })}
+                  />
                 </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setNewImageFile(e.target.files?.[0] ?? null)}
+
+                <textarea
+                  value={draft.notes}
+                  onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+                  rows={3}
+                  style={{ width: "100%", marginTop: 8 }}
                 />
-                {newImageFile ? (
-                  <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>
-                    New image selected: {newImageFile.name}
+
+                <input
+                  placeholder="tags (comma-separated)"
+                  value={draft.tags}
+                  onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
+                  style={{ width: "100%", marginTop: 8 }}
+                />
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 8 }}>
+                  <input
+                    placeholder="entry kind"
+                    value={draft.template}
+                    onChange={(e) => setDraft({ ...draft, template: e.target.value })}
+                  />
+                  <input
+                    placeholder="status"
+                    value={draft.status}
+                    onChange={(e) => setDraft({ ...draft, status: e.target.value })}
+                  />
+                  <input
+                    placeholder="Grouping"
+                    value={draft.grouping}
+                    onChange={(e) => setDraft({ ...draft, grouping: e.target.value })}
+                  />
+                </div>
+
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                    Replace image (optional)
                   </div>
-                ) : null}
-              </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setNewImageFile(e.target.files?.[0] ?? null)}
+                  />
+                  {newImageFile ? (
+                    <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>
+                      New image selected: {newImageFile.name}
+                    </div>
+                  ) : null}
+                </div>
 
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button onClick={() => saveEdit(r)}>Save</button>
-                <button onClick={() => { setEditingId(null); 
-                  setNewImageFile(null); }}>Cancel</button>
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button onClick={() => saveEdit(r)}>Save</button>
+                  <button onClick={() => { setEditingId(null); 
+                    setNewImageFile(null); }}>Cancel</button>
 
-              </div>
-            </>
+                </div>
+              </>
+            ) : (
+              <>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <strong>{r.title}</strong>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => { setSelectedId(null); }}>close</button>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#555", marginTop: 8 }}>
+                    {r.template && <>{r.template} · </>}
+                    {r.grouping && <>{r.grouping}</>}
+                    {r.status && <> ({r.status}) </>}
+                  </div>
+                  {r.imageUrl && (
+                    <img src={r.imageUrl} alt="" style={{ display: "block", margin: "auto"}} />
+                  )}
+
+                  {r.notes && (
+                    <div style={{ marginTop: 8, whiteSpace: "pre-wrap"}}>
+                    <ReactMarkdown>{r.notes}</ReactMarkdown>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => startEdit(r)}>Edit</button>
+                    <button onClick={() => deleteRecord(r)}>Delete</button>
+                  </div>
+                  </div>
+              </>
+            )
           ) : (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <strong>{r.title}</strong>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => startEdit(r)}>Edit</button>
-                  <button onClick={() => deleteRecord(r)}>Delete</button>
+                  <button onClick={() => selectId(r)}>Select</button>
                 </div>
               </div>
-
-
-              {r.imageUrl && (
-                <img src={r.imageUrl} alt="" style={{ maxWidth: 200, marginTop: 8 }} />
-              )}
-
-              {r.notes && <div style={{ marginTop: 8 }}>{r.notes}</div>}
-
               <div style={{ fontSize: 12, color: "#555", marginTop: 8 }}>
-                {r.entryKind && <>Kind: {r.entryKind} · </>}
-                {r.status && <>Status: {r.status} · </>}
-                {r.collection && <>Collection: {r.collection}</>}
+                {r.template && <>{r.template} · </>}
+                {r.grouping && <>{r.grouping}</>}
+                {r.status && <> ({r.status}) </>}
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-start", gap: 8 }}>
+                {r.imageUrl && (
+                  <img src={r.imageUrl} alt="" style={{ maxWidth: 100, marginTop: 8 }} />
+                )}
+                <div>
+                  {r.notes && <div style={{ marginTop: 8 }}>{r.notes.slice(0, 120)}</div>}
+                </div>
               </div>
             </>
           )}
