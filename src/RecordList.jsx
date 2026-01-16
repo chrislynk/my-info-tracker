@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { generateClient } from "aws-amplify/data";
 import { getUrl, uploadData, remove } from "aws-amplify/storage";
 import ReactMarkdown from "react-markdown";
+import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import StackedLineChartIcon from '@mui/icons-material/StackedLineChart';
+import AutoStoriesIcon from '@mui/icons-material/AutoStories';
+import ListIcon from '@mui/icons-material/List';
+import CollectionsIcon from '@mui/icons-material/Collections';
 
 const client = generateClient();
 
@@ -19,7 +25,7 @@ function toIsoOrNull(local) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-export default function RecordList() {
+export default function RecordList({ searchItem, setSearchItem, templateFilter }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
@@ -27,22 +33,37 @@ export default function RecordList() {
   const [newImageFile, setNewImageFile] = useState(null);
   const [draft, setDraft] = useState({});
 
-  const [searchItem, setSearchItem] = useState('');
-  const [filteredRecords, setFilteredRecords] = useState(records)
-  const searchChange = (e) => {
-    const searchTerm = e.target.value;
-    setSearchItem(searchTerm)
+  const [filteredRecords, setFilteredRecords] = useState([]);
 
-    const filteredItems =  records.filter((record) => 
-      record.title.toLowerCase().includes(searchTerm.toLowerCase()) 
-    );
-    setFilteredRecords(filteredItems)
-  }
+  const getTemplateIcon = (template) => {
+    if (!template) return null;
+    const templateLower = template.toLowerCase();
+
+    switch (templateLower) {
+      case 'todo':
+        return <PlaylistAddCheckIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
+      case 'project':
+        return <AccountTreeIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
+      case 'tracker':
+        return <StackedLineChartIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
+      case 'diary':
+        return <AutoStoriesIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
+      case 'list':
+        return <ListIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
+      case 'collection':
+        return <CollectionsIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
+      default:
+        return null;
+    }
+  };
+
+  const searchChange = (e) => {
+    setSearchItem(e.target.value);
+  };
 
   async function load() {
     setLoading(true);
     const { data } = await client.models.Record.list({ limit: 500 })
-    setFilteredRecords(data);
     const withUrls = await Promise.all(
       (data ?? []).map(async (r) => {
         if (!r.imageKey) return r;
@@ -58,6 +79,35 @@ export default function RecordList() {
     setRecords(withUrls);
     setLoading(false);
   }
+
+  useEffect(() => {
+    let items = records;
+
+    if (searchItem) {
+      const term = searchItem.toLowerCase();
+      items = items.filter((record) => (record.title ?? "").toLowerCase().includes(term));
+    }
+
+    if (templateFilter) {
+      const tf = templateFilter.toLowerCase();
+      switch (tf) {
+        case "project":
+          items = items.filter((record) => 
+            (record.template ?? "").toLowerCase() !== "collection" && 
+            (record.grouping ?? "").includes("[") &&
+            (record.grouping ?? "").includes("]")
+          );
+          break;
+        default:
+          items = items.filter((record) => 
+            (record.template ?? "").toLowerCase().includes(tf)
+          );
+          break;
+      }
+    }
+
+    setFilteredRecords(items);
+  }, [records, searchItem, templateFilter]);
 
   useEffect(() => {
     load();
@@ -230,15 +280,19 @@ export default function RecordList() {
                   />
                 </div>
 
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>
+                <div style={{ display: "flex", justifyContent: "flex-start", gap: 8 }}>
+                {r.imageUrl && (
+                  <img src={r.imageUrl} alt="" style={{ maxHeight: "2.5em", marginTop: 8 }} />
+                )}
+                  <div style={{ display: "grid", fontSize: 12, color: "#555", margin: 6 }}>
                     Replace image (optional)
-                  </div>
+                  
                   <input
                     type="file"
                     accept="image/*"
                     onChange={(e) => setNewImageFile(e.target.files?.[0] ?? null)}
                   />
+                  </div>
                   {newImageFile ? (
                     <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>
                       New image selected: {newImageFile.name}
@@ -246,7 +300,7 @@ export default function RecordList() {
                   ) : null}
                 </div>
 
-                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                   <button onClick={() => saveEdit(r)}>Save</button>
                   <button onClick={() => { setEditingId(null); 
                     setNewImageFile(null); }}>Cancel</button>
@@ -255,8 +309,11 @@ export default function RecordList() {
               </>
             ) : (
               <>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                    <strong>{r.title}</strong>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      {getTemplateIcon(r.template)}
+                      <strong>{r.title}</strong>
+                    </div>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button onClick={() => { setSelectedId(null); }}>close</button>
                     </div>
@@ -267,7 +324,7 @@ export default function RecordList() {
                     {r.status && <> ({r.status}) </>}
                   </div>
                   {r.imageUrl && (
-                    <img src={r.imageUrl} alt="" style={{ display: "block", margin: "auto"}} />
+                    <img src={r.imageUrl} alt="" style={{ display: "block", margin: "auto", maxWidth: "80%"}} />
                   )}
 
                   {r.notes && (
@@ -276,35 +333,35 @@ export default function RecordList() {
                     </div>
                   )}
 
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => startEdit(r)}>Edit</button>
+                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end"}}>
                     <button onClick={() => deleteRecord(r)}>Delete</button>
-                  </div>
+                    <button onClick={() => startEdit(r)}>Edit</button>
                   </div>
               </>
             )
           ) : (
             <>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                <strong>{r.title}</strong>
-                <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  {getTemplateIcon(r.template)}
+                  <strong>{r.title}</strong>
+                </div>
+                <div style={{ display: "flex", gap: 6, maxHeight: "1.5em" }}>
                   <button onClick={() => selectId(r)}>Select</button>
                 </div>
               </div>
-              <div style={{ fontSize: 12, color: "#555", marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: "#555", margin: 3 }}>
                 {r.template && <>{r.template} · </>}
                 {r.grouping && <>{r.grouping}</>}
                 {r.status && <> ({r.status}) </>}
               </div>
               <div style={{ display: "flex", justifyContent: "flex-start", gap: 8 }}>
                 {r.imageUrl && (
-                  <img src={r.imageUrl} alt="" style={{ maxWidth: 100, marginTop: 8 }} />
+                  <img src={r.imageUrl} alt="" style={{ maxHeight: "5em" }} />
                 )}
-                <div>
-                  {r.notes && <div style={{ marginTop: 8 }}>{r.notes.slice(0, 120)}</div>}
-                </div>
+            
+                  {r.notes && <div style={{ maxHeight: "5em", overflow: "auto" }}>{r.notes}</div>}
+                
               </div>
             </>
           )}
