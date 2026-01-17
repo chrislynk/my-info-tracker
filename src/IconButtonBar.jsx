@@ -11,25 +11,54 @@ import Tooltip from '@mui/material/Tooltip';
 
 const IconButtonBar = ({ setTemplateFilter, templateFilter }) => {
   return (
-    <ButtonGroup variant="contained" aria-label="icon button bar" style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+    <ButtonGroup
+      variant="contained"
+      aria-label="icon button bar"
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 4,
+        width: "100%"
+      }}
+    >
       <Tooltip title="ToDo">
-        <IconButton onClick={() => setTemplateFilter(templateFilter === "ToDo" ? "" : "ToDo")} aria-label="all" color={templateFilter === "ToDo" ? "primary" : "default"}>
-          <PlaylistAddCheckIcon style={{ fontSize: "1.5em" }} />
+        <IconButton
+          onClick={() => setTemplateFilter(templateFilter === "ToDo" ? "" : "ToDo")}
+          aria-label="all"
+          color={templateFilter === "ToDo" ? "primary" : "default"}
+          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 } }}
+        >
+          <PlaylistAddCheckIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />
         </IconButton>
       </Tooltip>
       <Tooltip title="Project">
-        <IconButton onClick={() => setTemplateFilter(templateFilter === "Project" ? "" : "Project")} aria-label="project" color={templateFilter === "Project" ? "primary" : "default"}>
-          <AccountTreeIcon style={{ fontSize: "1.5em" }} />
+        <IconButton
+          onClick={() => setTemplateFilter(templateFilter === "Project" ? "" : "Project")}
+          aria-label="project"
+          color={templateFilter === "Project" ? "primary" : "default"}
+          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 } }}
+        >
+          <AccountTreeIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />
         </IconButton>
       </Tooltip>
       <Tooltip title="Tracker">
-        <IconButton onClick={() => setTemplateFilter(templateFilter === "Tracker" ? "" : "Tracker")} aria-label="tracker" color={templateFilter === "Tracker" ? "primary" : "default"}>
-          <StackedLineChartIcon style={{ fontSize: "1.5em" }} />
+        <IconButton
+          onClick={() => setTemplateFilter(templateFilter === "Tracker" ? "" : "Tracker")}
+          aria-label="tracker"
+          color={templateFilter === "Tracker" ? "primary" : "default"}
+          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 } }}
+        >
+          <StackedLineChartIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />
         </IconButton>
       </Tooltip>
       <Tooltip title="Diary">
-        <IconButton onClick={() => setTemplateFilter(templateFilter === "Diary" ? "" : "Diary")} aria-label="diary" color={templateFilter === "Diary" ? "primary" : "default"}>
-          <AutoStoriesIcon style={{ fontSize: "1.5em" }} />
+        <IconButton
+          onClick={() => setTemplateFilter(templateFilter === "Diary" ? "" : "Diary")}
+          aria-label="diary"
+          color={templateFilter === "Diary" ? "primary" : "default"}
+          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 } }}
+        >
+          <AutoStoriesIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />
         </IconButton>
       </Tooltip>
     </ButtonGroup>

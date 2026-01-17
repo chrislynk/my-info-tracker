@@ -219,7 +219,7 @@ export default function RecordForm({ templateFilter }) {
   return (
     <div className="container" style={{ display: "flex" }}>
       {showForm && (
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
+        <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, width: "100%" }}>
           <div style={{ display: "grid", gap: 6 }}>
             <label style={{ fontWeight: 600 }}>Title *</label>
             <input
@@ -227,7 +227,7 @@ export default function RecordForm({ templateFilter }) {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., Gym session"
               required
-              style={{ padding: 10 }}
+              style={{ padding: 10, fontSize: "16px" }}
             />
           </div>
 
@@ -306,11 +306,11 @@ export default function RecordForm({ templateFilter }) {
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Optional notes"
               rows={8}
-              style={{ padding: 10, resize: "vertical" }}
+              style={{ padding: 10, resize: "vertical", fontSize: "16px" }}
             />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
             <div style={{ display: "grid", gap: 6 }}>
               <label style={{ fontWeight: 600 }}>Template</label>
               <div style={{ position: "relative" }}>
@@ -323,7 +323,8 @@ export default function RecordForm({ templateFilter }) {
                     cursor: "pointer",
                     background: "#fff",
                     display: "flex",
-                    alignItems: "center"
+                    alignItems: "center",
+                    fontSize: "16px"
                   }}
                 >
                   {(templateFilter || template) ? (
@@ -397,7 +398,7 @@ export default function RecordForm({ templateFilter }) {
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 placeholder="e.g., active, done, cancelled"
-                style={{ padding: 10 }}
+                style={{ padding: 10, fontSize: "16px" }}
               >
                 <option value="">-- Select or leave empty --</option>
                 <option value="Open">Open</option>
@@ -588,18 +589,18 @@ export default function RecordForm({ templateFilter }) {
               value={grouping}
               onChange={(e) => setGrouping(e.target.value)}
               placeholder="e.g., 2026, fitness, work"
-              style={{ padding: 10 }}
+              style={{ padding: 10, fontSize: "16px" }}
             />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
             <div style={{ display: "grid", gap: 6 }}>
               <label style={{ fontWeight: 600 }}>Start</label>
               <input
                 type="datetime-local"
                 value={start}
                 onChange={(e) => setStart(e.target.value)}
-                style={{ padding: 10 }}
+                style={{ padding: 10, fontSize: "16px" }}
               />
             </div>
 
@@ -609,20 +610,20 @@ export default function RecordForm({ templateFilter }) {
                 type="datetime-local"
                 value={end}
                 onChange={(e) => setEnd(e.target.value)}
-                style={{ padding: 10 }}
+                style={{ padding: 10, fontSize: "16px" }}
               />
             </div>
           </div>
 
           <div style={{ display: "flex", gap: 12 }}>
-            <button type="submit" disabled={saving} style={{ padding: "10px 14px" }}>
+            <button type="submit" disabled={saving} style={{ padding: "10px 14px", fontSize: "16px" }}>
               {saving ? "Saving..." : "Save Record"}
             </button>
           </div>
         </form>
       )}
       <div style={{ marginLeft: "auto", maxHeight: "1.5em" }}>
-        <button onClick={() => showForm ? handleCancelForm() : handleShowForm()}>
+        <button onClick={() => showForm ? handleCancelForm() : handleShowForm()} style={{ fontSize: "16px", padding: "8px 12px" }}>
           {showForm ? 'Cancel' : `Add ${templateFilter} Entry`}
         </button>
       </div>

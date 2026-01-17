@@ -220,6 +220,7 @@ export default function RecordList({ searchItem, setSearchItem, templateFilter }
         value={searchItem}
         onChange={searchChange}
         placeholder='Type to search'
+        style={{ padding: 10, fontSize: "16px" }}
       />
       {filteredRecords.map((r) => (
         <div
@@ -232,19 +233,21 @@ export default function RecordList({ searchItem, setSearchItem, templateFilter }
                 <input
                   value={draft.title}
                   onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                  style={{ width: "100%", marginBottom: 8 }}
+                  style={{ width: "100%", marginBottom: 8, fontSize: "16px", padding: 8 }}
                 />
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
                   <input
                     type="datetime-local"
                     value={draft.start}
                     onChange={(e) => setDraft({ ...draft, start: e.target.value })}
+                    style={{ fontSize: "16px", padding: 8 }}
                   />
                   <input
                     type="datetime-local"
                     value={draft.end}
                     onChange={(e) => setDraft({ ...draft, end: e.target.value })}
+                    style={{ fontSize: "16px", padding: 8 }}
                   />
                 </div>
 
@@ -252,31 +255,34 @@ export default function RecordList({ searchItem, setSearchItem, templateFilter }
                   value={draft.notes}
                   onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
                   rows={3}
-                  style={{ width: "100%", marginTop: 8 }}
+                  style={{ width: "100%", marginTop: 8, fontSize: "16px", padding: 8 }}
                 />
 
                 <input
                   placeholder="tags (comma-separated)"
                   value={draft.tags}
                   onChange={(e) => setDraft({ ...draft, tags: e.target.value })}
-                  style={{ width: "100%", marginTop: 8 }}
+                  style={{ width: "100%", marginTop: 8, fontSize: "16px", padding: 8 }}
                 />
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8, marginTop: 8 }}>
                   <input
                     placeholder="entry kind"
                     value={draft.template}
                     onChange={(e) => setDraft({ ...draft, template: e.target.value })}
+                    style={{ fontSize: "16px", padding: 8 }}
                   />
                   <input
                     placeholder="status"
                     value={draft.status}
                     onChange={(e) => setDraft({ ...draft, status: e.target.value })}
+                    style={{ fontSize: "16px", padding: 8 }}
                   />
                   <input
                     placeholder="Grouping"
                     value={draft.grouping}
                     onChange={(e) => setDraft({ ...draft, grouping: e.target.value })}
+                    style={{ fontSize: "16px", padding: 8 }}
                   />
                 </div>
 
@@ -300,22 +306,22 @@ export default function RecordList({ searchItem, setSearchItem, templateFilter }
                   ) : null}
                 </div>
 
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                  <button onClick={() => saveEdit(r)}>Save</button>
-                  <button onClick={() => { setEditingId(null); 
-                    setNewImageFile(null); }}>Cancel</button>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 8 }}>
+                  <button onClick={() => saveEdit(r)} style={{ fontSize: "16px", padding: "8px 12px" }}>Save</button>
+                  <button onClick={() => { setEditingId(null);
+                    setNewImageFile(null); }} style={{ fontSize: "16px", padding: "8px 12px" }}>Cancel</button>
 
                 </div>
               </>
             ) : (
               <>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", minWidth: 0 }}>
                       {getTemplateIcon(r.template)}
-                      <strong>{r.title}</strong>
+                      <strong style={{ fontSize: "16px", wordBreak: "break-word" }}>{r.title}</strong>
                     </div>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={() => { setSelectedId(null); }}>close</button>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => { setSelectedId(null); }} style={{ fontSize: "16px", padding: "6px 12px" }}>close</button>
                     </div>
                   </div>
                   <div style={{ fontSize: 12, color: "#555", marginTop: 8 }}>
@@ -324,30 +330,30 @@ export default function RecordList({ searchItem, setSearchItem, templateFilter }
                     {r.status && <> ({r.status}) </>}
                   </div>
                   {r.imageUrl && (
-                    <img src={r.imageUrl} alt="" style={{ display: "block", margin: "auto", maxWidth: "80%"}} />
+                    <img src={r.imageUrl} alt="" style={{ display: "block", margin: "8px auto", maxWidth: "100%", height: "auto"}} />
                   )}
 
                   {r.notes && (
-                    <div style={{ marginTop: 8, whiteSpace: "pre-wrap"}}>
+                    <div style={{ marginTop: 8, whiteSpace: "pre-wrap", fontSize: "14px"}}>
                     <ReactMarkdown>{r.notes}</ReactMarkdown>
                     </div>
                   )}
 
-                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end"}}>
-                    <button onClick={() => deleteRecord(r)}>Delete</button>
-                    <button onClick={() => startEdit(r)}>Edit</button>
+                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 8 }}>
+                    <button onClick={() => deleteRecord(r)} style={{ fontSize: "16px", padding: "8px 12px" }}>Delete</button>
+                    <button onClick={() => startEdit(r)} style={{ fontSize: "16px", padding: "8px 12px" }}>Edit</button>
                   </div>
               </>
             )
           ) : (
             <>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", minWidth: 0 }}>
                   {getTemplateIcon(r.template)}
-                  <strong>{r.title}</strong>
+                  <strong style={{ fontSize: "16px", wordBreak: "break-word" }}>{r.title}</strong>
                 </div>
-                <div style={{ display: "flex", gap: 6, maxHeight: "1.5em" }}>
-                  <button onClick={() => selectId(r)}>Select</button>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => selectId(r)} style={{ fontSize: "16px", padding: "6px 12px" }}>Select</button>
                 </div>
               </div>
               <div style={{ fontSize: 12, color: "#555", margin: 3 }}>
@@ -355,13 +361,13 @@ export default function RecordList({ searchItem, setSearchItem, templateFilter }
                 {r.grouping && <>{r.grouping}</>}
                 {r.status && <> ({r.status}) </>}
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-start", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "flex-start", gap: 8, flexWrap: "wrap" }}>
                 {r.imageUrl && (
-                  <img src={r.imageUrl} alt="" style={{ maxHeight: "5em" }} />
+                  <img src={r.imageUrl} alt="" style={{ maxHeight: "5em", maxWidth: "100%", height: "auto" }} />
                 )}
-            
-                  {r.notes && <div style={{ maxHeight: "5em", overflow: "auto" }}>{r.notes}</div>}
-                
+
+                  {r.notes && <div style={{ maxHeight: "5em", overflow: "auto", flex: "1 1 auto", fontSize: "14px" }}>{r.notes}</div>}
+
               </div>
             </>
           )}

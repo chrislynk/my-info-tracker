@@ -12,14 +12,22 @@ export default function App() {
   const [templateFilter, setTemplateFilter] = useState("");
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: 24, fontFamily: "system-ui" }}>
-      <h1 style={{ marginTop: 0 }}>Personal Tracker</h1>
+    <div style={{
+      maxWidth: 900,
+      margin: "0 auto",
+      padding: "12px",
+      fontFamily: "system-ui",
+      "@media (min-width: 768px)": {
+        padding: 24
+      }
+    }}>
+      <h1 style={{ marginTop: 0, fontSize: "clamp(1.5rem, 5vw, 2rem)" }}>Personal Tracker</h1>
       <RecordForm templateFilter={templateFilter} />
-      <div style={{ height: 24 }} />
+      <div style={{ height: 16 }} />
       <hr />
-      <div style={{ height: 24 }} />
+      <div style={{ height: 16 }} />
       <RecordList searchItem={searchItem} setSearchItem={setSearchItem} templateFilter={templateFilter} />
-      <div style={{ position: "sticky", bottom: 8, zIndex: 10, background: "white"}}>
+      <div style={{ position: "sticky", bottom: 8, zIndex: 10, background: "white", padding: "8px 0"}}>
         <IconButtonBar setTemplateFilter={setTemplateFilter} templateFilter={templateFilter} />
       </div>
     </div>
