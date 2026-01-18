@@ -18,7 +18,8 @@ export default function App() {
       padding: "12px",
       fontFamily: "system-ui",
       "@media (min-width: 768px)": {
-        padding: 24
+        padding: 24,
+        maxWidth: "100%"
       }
     }}>
       <h1 style={{ marginTop: 0, fontSize: "clamp(1.5rem, 5vw, 2rem)" }}>Personal Tracker</h1>

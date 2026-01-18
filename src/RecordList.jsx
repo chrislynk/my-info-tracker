@@ -214,13 +214,13 @@ export default function RecordList({ searchItem, setSearchItem, templateFilter }
   if (!records.length) return <div>No records yet.</div>;
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div>
       <input
         type="text"
         value={searchItem}
         onChange={searchChange}
         placeholder='Type to search'
-        style={{ padding: 10, fontSize: "16px" }}
+        style={{ padding: 10, fontSize: "16px", width: "-webkit-fill-available", marginBottom: 12 }}
       />
       {filteredRecords.map((r) => (
         <div
