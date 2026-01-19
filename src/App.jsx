@@ -17,7 +17,7 @@ export default function App() {
       margin: "0 auto",
       padding: "12px",
       fontFamily: "system-ui",
-      "@media (min-width: 768px)": {
+      "@media (minwidth: 768px)": {
         padding: 24,
         maxWidth: "100%"
       }

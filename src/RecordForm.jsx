@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { uploadData } from "aws-amplify/storage";
+import { uploadData, remove } from "aws-amplify/storage";
 import { generateClient } from "aws-amplify/data";
+import IconButton from '@mui/material/IconButton'
 import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -8,6 +9,8 @@ import StackedLineChartIcon from '@mui/icons-material/StackedLineChart';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import ListIcon from '@mui/icons-material/List';
 import CollectionsIcon from '@mui/icons-material/Collections';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 
 const client = generateClient();
 
@@ -18,10 +21,20 @@ function toIsoOrNull(datetimeLocalValue) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-export default function RecordForm({ templateFilter }) {
+function toLocalInputValue(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toISOString().slice(0, 16);
+}
+
+export default function RecordForm({ templateFilter, editRecord, onCancelEdit }) {
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [file, setFile] = useState(null);
+
+  const isEditMode = !!editRecord;
 
   const [title, setTitle] = useState("");
   const [start, setStart] = useState(""); // datetime-local
@@ -99,6 +112,23 @@ export default function RecordForm({ templateFilter }) {
     return () => window.removeEventListener("records:changed", handler);
   }, []);
 
+  // Populate form when editRecord changes
+  useEffect(() => {
+    if (editRecord) {
+      setTitle(editRecord.title ?? "");
+      setStart(toLocalInputValue(editRecord.start));
+      setEnd(toLocalInputValue(editRecord.end));
+      setNotes(editRecord.notes ?? "");
+      setSelectedTags(editRecord.tags ?? []);
+      setTemplate(editRecord.template ?? "");
+      setStatus(editRecord.status ?? "");
+      setGrouping(editRecord.grouping ?? "");
+      setImageFile(null);
+      setImagePreview(editRecord.imageUrl ?? null);
+      setShowForm(true);
+    }
+  }, [editRecord]);
+
   async function uploadAndCreate() {
     if (!file) return;
 
@@ -126,12 +156,13 @@ export default function RecordForm({ templateFilter }) {
 
     setSaving(true);
     try {
-      // 1) upload image (optional)
-      let imageKey = null;
-      if (imageFile) {
-        imageKey = `public/${crypto.randomUUID()}-${imageFile.name}`;
+      let nextImageKey = editRecord?.imageKey ?? null;
+
+      // 1) upload new image if selected
+      if (imageFile && imageFile instanceof File) {
+        nextImageKey = `public/${crypto.randomUUID()}-${imageFile.name}`;
         await uploadData({
-          path: imageKey,
+          path: nextImageKey,
           data: imageFile,
           options: { contentType: imageFile.type },
         }).result;
@@ -146,21 +177,40 @@ export default function RecordForm({ templateFilter }) {
         template: template.trim() ? template.trim() : null,
         status: status.trim() ? status.trim() : null,
         grouping: grouping.trim() ? grouping.trim() : null,
-        imageKey,
+        imageKey: nextImageKey,
       };
 
-      const { data, errors } = await client.models.Record.create(payload);
-      console.log(data)
-      if (errors?.length) {
-        console.log(errors)
-        throw new Error(errors.map((x) => x.message).join("; "));
-      }
-      if (!data?.id) {
-        console.log("Create failed: no record returned.")
-        throw new Error("Create failed: no record returned.");
+      if (isEditMode) {
+        // Update existing record
+        const { errors } = await client.models.Record.update({
+          id: editRecord.id,
+          ...payload,
+        });
+
+        if (errors?.length) {
+          console.log(errors);
+          throw new Error(errors.map((x) => x.message).join("; "));
+        }
+
+        // Delete old image if we uploaded a new one
+        if (imageFile && imageFile instanceof File && editRecord.imageKey && editRecord.imageKey !== nextImageKey) {
+          await remove({ path: editRecord.imageKey });
+        }
+      } else {
+        // Create new record
+        const { data, errors } = await client.models.Record.create(payload);
+        console.log(data);
+        if (errors?.length) {
+          console.log(errors);
+          throw new Error(errors.map((x) => x.message).join("; "));
+        }
+        if (!data?.id) {
+          console.log("Create failed: no record returned.");
+          throw new Error("Create failed: no record returned.");
+        }
       }
 
-      // 3) reset form
+      // Reset form
       setTitle("");
       setStart("");
       setEnd("");
@@ -176,8 +226,13 @@ export default function RecordForm({ templateFilter }) {
       setShowTagDropdown(false);
       setShowTemplateDropdown(false);
 
-      // 4) let the list know to refresh
+      // Let the list know to refresh
       window.dispatchEvent(new Event("records:changed"));
+
+      // Call onCancelEdit if in edit mode
+      if (isEditMode && onCancelEdit) {
+        onCancelEdit();
+      }
     } catch (err) {
       console.error(err);
       alert(`Save failed: ${err?.message ?? err}`);
@@ -214,6 +269,11 @@ export default function RecordForm({ templateFilter }) {
     setNewTagInput("");
     setShowTagDropdown(false);
     setShowTemplateDropdown(false);
+
+    // Call onCancelEdit if in edit mode
+    if (isEditMode && onCancelEdit) {
+      onCancelEdit();
+    }
   }
 
   return (
@@ -615,18 +675,23 @@ export default function RecordForm({ templateFilter }) {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12 }}>
-            <button type="submit" disabled={saving} style={{ padding: "10px 14px", fontSize: "16px" }}>
-              {saving ? "Saving..." : "Save Record"}
+          <div style={{ display: "flex", gap: 12, justifyContent: "space-between" }}>
+            <button type="submit" disabled={saving} className="button-43">
+              {saving ? "Saving..." : (isEditMode ? "Update" : "Save")}
             </button>
+            {isEditMode ?( <button onClick={() => handleCancelForm() }>
+              Cancel
+            </button>): ('')}
           </div>
         </form>
       )}
-      <div style={{ marginLeft: "auto", maxHeight: "1.5em" }}>
-        <button onClick={() => showForm ? handleCancelForm() : handleShowForm()} style={{ fontSize: "16px", padding: "8px 12px" }}>
-          {showForm ? 'Cancel' : `Add ${templateFilter} Entry`}
-        </button>
-      </div>
+      {!isEditMode && (
+        <div style={{ marginLeft: "auto", maxHeight: "1.5em" }}>
+          <IconButton aria-label="close" onClick={() => showForm ? handleCancelForm() : handleShowForm()} >
+            {showForm ? <CloseOutlinedIcon /> : <AddCircleOutlineIcon />}
+          </IconButton>
+        </div>
+      )}
     </div>
   );
 }
