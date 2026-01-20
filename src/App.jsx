@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import RecordForm from "./RecordForm";
 import RecordList from "./RecordList";
 import IconButtonBar from "./IconButtonBar";
+import "./App.css";
+import "./index.css";
 
 const client = generateClient();
 

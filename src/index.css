@@ -67,8 +67,8 @@ button:focus-visible {
   }
 }
 
-/* CSS */
-.button-43 {
+
+.txt-button {
   background-image: linear-gradient(-180deg, #37AEE2 0%, #1E96C8 100%);
   border-radius: .5rem;
   box-sizing: border-box;
@@ -86,12 +86,12 @@ button:focus-visible {
   touch-action: manipulation;
 }
 
-.button-43:hover {
+.txt-button:hover {
   background-image: linear-gradient(-180deg, #1D95C9 0%, #17759C 100%);
 }
 
 @media (min-width: 768px) {
-  .button-43 {
+  .txt-button {
     padding: 1rem 2rem;
   }
 }

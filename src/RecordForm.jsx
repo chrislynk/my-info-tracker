@@ -621,7 +621,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
                               setNewTagInput("");
                               setShowNewTagInput(false);
                             }}
-                            style={{ padding: "4px 12px" }}
+                            className="txt-button"
                           >
                             Add
                           </button>
@@ -676,10 +676,10 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
           </div>
 
           <div style={{ display: "flex", gap: 12, justifyContent: "space-between" }}>
-            <button type="submit" disabled={saving} className="button-43">
+            <button className="txt-button" disabled={saving} >
               {saving ? "Saving..." : (isEditMode ? "Update" : "Save")}
             </button>
-            {isEditMode ?( <button onClick={() => handleCancelForm() }>
+            {isEditMode ?( <button className="txt-button" onClick={() => handleCancelForm() }>
               Cancel
             </button>): ('')}
           </div>
