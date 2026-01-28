@@ -598,7 +598,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
             />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
             <div style={{ display: "grid", gap: 6 }}>
               <label style={{ fontWeight: 600 }}>Start</label>
               <input

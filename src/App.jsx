@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import RecordForm from "./RecordForm";
 import RecordList from "./RecordList";
 import IconButtonBar from "./IconButtonBar";
-import "./App.css";
 import "./index.css";
 
 const client = generateClient();
@@ -18,11 +17,7 @@ export default function App() {
       maxWidth: 900,
       margin: "0 auto",
       padding: "12px",
-      fontFamily: "system-ui",
-      "@media (minwidth: 768px)": {
-        padding: 24,
-        maxWidth: "100%"
-      }
+      fontFamily: "system-ui"
     }}>
       <h1 style={{ marginTop: 0, fontSize: "clamp(1.5rem, 5vw, 2rem)" }}>Personal Tracker</h1>
       <RecordForm templateFilter={templateFilter} />
