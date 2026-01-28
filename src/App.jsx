@@ -30,7 +30,7 @@ export default function App() {
       <hr />
       <div style={{ height: 16 }} />
       <RecordList searchItem={searchItem} setSearchItem={setSearchItem} templateFilter={templateFilter} />
-      <div style={{ position: "sticky", bottom: 8, zIndex: 10, background: "white", padding: "8px 0"}}>
+      <div id="command_bar">
         <IconButtonBar setTemplateFilter={setTemplateFilter} templateFilter={templateFilter} />
       </div>
     </div>

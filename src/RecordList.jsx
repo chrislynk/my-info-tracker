@@ -14,6 +14,9 @@ import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import BorderColorOutlinedIcon from '@mui/icons-material/BorderColorOutlined';
 import DeleteForeverOutlinedIcon from '@mui/icons-material/DeleteForeverOutlined';
 import RecordForm from "./RecordForm";
+import { Amplify } from "aws-amplify";
+import outputs from "../amplify_outputs.json";
+Amplify.configure(outputs);
 
 const client = generateClient();
 
@@ -158,7 +161,10 @@ export default function RecordList({ searchItem, setSearchItem, templateFilter }
       {filteredRecords.map((r) => (
         <div
           key={r.id}
-          style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}
+          style={selectedId === r.id ? 
+            {border: "1px solid #1E96C8", borderRadius: 8, padding: 12, marginBottom: 12, boxShadow: "rgba(30, 150, 200, 0.25) 5px 5px 5px 2px"} : 
+            {border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12}
+          }
         >
           {selectedId === r.id ? (
             editingRecord?.id === r.id ? (

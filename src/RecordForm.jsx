@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { uploadData, remove } from "aws-amplify/storage";
 import { generateClient } from "aws-amplify/data";
+import ReactMarkdown from "react-markdown";
+import { renderToStaticMarkup } from 'react-dom/server';
+import Editor from 'react-simple-wysiwyg';
+import TurndownService from 'turndown';
 import IconButton from '@mui/material/IconButton'
 import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
@@ -11,6 +15,9 @@ import ListIcon from '@mui/icons-material/List';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
+import { Amplify } from "aws-amplify";
+import outputs from "../amplify_outputs.json";
+Amplify.configure(outputs);
 
 const client = generateClient();
 
@@ -34,6 +41,8 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
   const [showForm, setShowForm] = useState(false);
   const [file, setFile] = useState(null);
 
+  const [noteHtml, setNoteHtml] = useState('');
+
   const isEditMode = !!editRecord;
 
   const [title, setTitle] = useState("");
@@ -50,9 +59,10 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
   const [selectedTags, setSelectedTags] = useState([]);
   const [showNewTagInput, setShowNewTagInput] = useState(false);
   const [newTagInput, setNewTagInput] = useState("");
-  const [showTagDropdown, setShowTagDropdown] = useState(false);
+  
   const [imagePreview, setImagePreview] = useState(null);
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
 
   const tags = useMemo(() => {
     return selectedTags.length ? selectedTags : null;
@@ -119,6 +129,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
       setStart(toLocalInputValue(editRecord.start));
       setEnd(toLocalInputValue(editRecord.end));
       setNotes(editRecord.notes ?? "");
+      setNoteHtml(editRecord.notes ? renderToStaticMarkup(<ReactMarkdown>{editRecord.notes}</ReactMarkdown>) : "");
       setSelectedTags(editRecord.tags ?? []);
       setTemplate(editRecord.template ?? "");
       setStatus(editRecord.status ?? "");
@@ -276,6 +287,17 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
     }
   }
 
+  function onEditChange(e) {
+    setNoteHtml(e.target.value);
+    const turndownService = new TurndownService();
+    const markdown = turndownService.turndown(e.target.value)
+    setNotes(markdown)
+  }
+
+  function getHtmlFromMarkdown(markdown) {  
+    return <ReactMarkdown>{markdown}</ReactMarkdown>;
+  }
+
   return (
     <div className="container" style={{ display: "flex" }}>
       {showForm && (
@@ -321,16 +343,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
                 borderRadius: 8,
                 padding: 16,
                 cursor: "pointer",
-                background: "#fafafa",
                 transition: "all 0.2s"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#f0f0f0";
-                e.currentTarget.style.borderColor = "#999";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#fafafa";
-                e.currentTarget.style.borderColor = "#ccc";
               }}
             >
               {imagePreview ? (
@@ -361,58 +374,25 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
 
           <div style={{ display: "grid", gap: 6 }}>
             <label style={{ fontWeight: 600 }}>Notes</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional notes"
-              rows={8}
-              style={{ padding: 10, resize: "vertical", fontSize: "16px" }}
-            />
+            <Editor value={noteHtml} onChange={onEditChange} />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
             <div style={{ display: "grid", gap: 6 }}>
               <label style={{ fontWeight: 600 }}>Template</label>
               <div style={{ position: "relative" }}>
-                <div
-                  onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
-                  style={{
-                    border: "1px solid #ccc",
-                    borderRadius: 4,
-                    padding: 10,
-                    cursor: "pointer",
-                    background: "#fff",
-                    display: "flex",
-                    alignItems: "center",
-                    fontSize: "16px"
-                  }}
-                >
+                <div className="input" onClick={() => {setShowTemplateDropdown(!showTemplateDropdown); setShowTagDropdown(false);}}>
                   {(templateFilter || template) ? (
                     <div style={{ display: "flex", alignItems: "center" }}>
                       {getTemplateIcon(templateFilter || template)}
                       <span>{templateFilter || template}</span>
                     </div>
                   ) : (
-                    <span style={{ color: "#999" }}>-- Select or leave empty --</span>
+                    <span>-- Select or leave empty --</span>
                   )}
-                </div>
+                </div >
                 {showTemplateDropdown && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      marginTop: 4,
-                      border: "1px solid #ccc",
-                      borderRadius: 4,
-                      background: "#fff",
-                      maxHeight: 200,
-                      overflowY: "auto",
-                      zIndex: 1000,
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
-                    }}
-                  >
+                  <div className="dropDown">
                     <div
                       onClick={() => {
                         setTemplate("");
@@ -420,11 +400,11 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
                       }}
                       style={{
                         padding: "8px 12px",
-                        cursor: "pointer",
-                        color: "#999"
+                        cursor: "pointer"
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "#f5f5f5"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                      className="dropDown"
+                      onMouseEnter={(e) => e.currentTarget.className = "hover"}
+                        onMouseLeave={(e) => e.currentTarget.className = ""}
                     >
                       -- None --
                     </div>
@@ -441,8 +421,8 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
                           padding: "8px 12px",
                           cursor: "pointer"
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = "#f5f5f5"}
-                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                        onMouseEnter={(e) => e.currentTarget.className = "hover"}
+                        onMouseLeave={(e) => e.currentTarget.className = ""}
                       >
                         {getTemplateIcon(t)}
                         {t}
@@ -457,10 +437,10 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                placeholder="e.g., active, done, cancelled"
-                style={{ padding: 10, fontSize: "16px" }}
+                placeholder="-- Select or leave empty --"
+                className="input"
               >
-                <option value="">-- Select or leave empty --</option>
+                <option  value="">-- Select or leave empty --</option>
                 <option value="Open">Open</option>
                 <option value="In Progress">In Progress</option>
                 <option value="Done">Done</option>
@@ -472,27 +452,29 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
               <label style={{ fontWeight: 600 }}>Tags</label>
               <div style={{ position: "relative" }}>
                 <div
-                  onClick={() => setShowTagDropdown(!showTagDropdown)}
+                  onClick={() => {
+                    setShowTagDropdown(!showTagDropdown); 
+                    setShowTemplateDropdown(false);
+                  }}
                   style={{
                     border: "1px solid #ccc",
                     borderRadius: 4,
                     padding: 8,
                     minHeight: 40,
-                    cursor: "pointer",
-                    background: "#fff"
+                    cursor: "pointer"
                   }}
+                  className="input"
                 >
                   {selectedTags.length > 0 ? (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    <div className="dropDown" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {selectedTags.map(tag => (
                         <span
                           key={tag}
                           style={{
-                            background: "#e0e0e0",
                             padding: "4px 8px",
                             borderRadius: 4,
                             fontSize: 12,
-                            display: "flex",
+                            display: "contents",
                             alignItems: "center",
                             gap: 4
                           }}
@@ -524,33 +506,13 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
                 </div>
                 {showTagDropdown && (
                   <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      marginTop: 4,
-                      border: "1px solid #ccc",
-                      borderRadius: 4,
-                      background: "#fff",
-                      maxHeight: 200,
-                      overflowY: "auto",
-                      zIndex: 1000,
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
-                    }}
+                    className="dropDown"
                   >
                     {existingTags.map(tag => (
                       <label
                         key={tag}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          padding: "8px 12px",
-                          cursor: "pointer",
-                          hover: { background: "#f5f5f5" }
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = "#f5f5f5"}
-                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                        onMouseEnter={(e) => e.currentTarget.className = "hover"}
+                        onMouseLeave={(e) => e.currentTarget.className = ""}
                       >
                         <input
                           type="checkbox"
@@ -567,25 +529,9 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
                         {tag}
                       </label>
                     ))}
-                    <div
-                      style={{
-                        borderTop: "1px solid #e0e0e0",
-                        padding: 8
-                      }}
-                    >
+                    <div>
                       {!showNewTagInput ? (
-                        <button
-                          type="button"
-                          onClick={() => setShowNewTagInput(true)}
-                          style={{
-                            width: "100%",
-                            padding: "6px 12px",
-                            background: "#f5f5f5",
-                            border: "1px solid #ddd",
-                            borderRadius: 4,
-                            cursor: "pointer"
-                          }}
-                        >
+                        <button type="button" onClick={() => setShowNewTagInput(true)}>
                           + Create new tag
                         </button>
                       ) : (
@@ -595,7 +541,6 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
                             value={newTagInput}
                             onChange={(e) => setNewTagInput(e.target.value)}
                             placeholder="Enter new tag"
-                            style={{ flex: 1, padding: 6, border: "1px solid #ddd", borderRadius: 4 }}
                             autoFocus
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
