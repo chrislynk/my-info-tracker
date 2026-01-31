@@ -13,7 +13,7 @@ import StackedLineChartIcon from '@mui/icons-material/StackedLineChart';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import ListIcon from '@mui/icons-material/List';
 import CollectionsIcon from '@mui/icons-material/Collections';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import { Amplify } from "aws-amplify";
 import outputs from "../amplify_outputs.json";
@@ -299,7 +299,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
   }
 
   return (
-    <div className="container" style={{ display: "flex" }}>
+    <div className="container" style={{ display: "flex"  }}>
       {showForm && (
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, width: "100%" }}>
           <div style={{ display: "grid", gap: 6 }}>
@@ -631,9 +631,9 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
         </form>
       )}
       {!isEditMode && (
-        <div style={{ marginLeft: "auto", maxHeight: "1.5em" }}>
+        <div style={{ marginLeft: "auto", maxHeight: "1.5em", position: "fixed", right: 0, top: 0, zIndex: 1000 }}>
           <IconButton aria-label="close" onClick={() => showForm ? handleCancelForm() : handleShowForm()} >
-            {showForm ? <CloseOutlinedIcon /> : <AddCircleOutlineIcon />}
+            {showForm ? <CloseOutlinedIcon /> : <AddCircleIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />}
           </IconButton>
         </div>
       )}

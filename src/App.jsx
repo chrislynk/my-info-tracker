@@ -19,7 +19,9 @@ export default function App() {
       padding: "12px",
       fontFamily: "system-ui"
     }}>
-      <h1 style={{ marginTop: 0, fontSize: "clamp(1.5rem, 5vw, 2rem)" }}>Personal Tracker</h1>
+      <div id="header_bar">
+        <h1 style={{ marginTop: 0, fontSize: "clamp(1.5rem, 5vw, 2rem)" }}>Personal Tracker</h1>
+      </div>
       <RecordForm templateFilter={templateFilter} />
       <div style={{ height: 16 }} />
       <hr />

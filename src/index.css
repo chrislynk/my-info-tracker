@@ -112,7 +112,7 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
-  #command_bar {
+  #command_bar, #header_bar {
     background-color: #fafafa;
   }
 
@@ -149,7 +149,7 @@ button:focus-visible {
   button {
     background-color: #253372;
   }
-  #command_bar {
+  #command_bar, #header_bar {
     background-color: #1E1E1E;
   }
   .dropDown {
@@ -173,10 +173,14 @@ button:focus-visible {
     color: #fff;
   }
 }
-
+#header_bar {
+  position: sticky;
+  top: 0;
+  height: 2.5em;
+}
 #command_bar {
   position: sticky;
-  bottom: 8px;
+  bottom: 0;
   z-index: 10;
   padding: 8px 0;
 }
