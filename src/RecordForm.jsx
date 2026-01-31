@@ -36,9 +36,8 @@ function toLocalInputValue(iso) {
     : d.toISOString().slice(0, 16);
 }
 
-export default function RecordForm({ templateFilter, editRecord, onCancelEdit }) {
+export default function RecordForm({ templateFilter, editRecord, onCancelEdit, showForm, setShowForm }) {
   const [saving, setSaving] = useState(false);
-  const [showForm, setShowForm] = useState(false);
   const [file, setFile] = useState(null);
 
   const [noteHtml, setNoteHtml] = useState('');
@@ -136,9 +135,12 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
       setGrouping(editRecord.grouping ?? "");
       setImageFile(null);
       setImagePreview(editRecord.imageUrl ?? null);
-      setShowForm(true);
+      // Only set showForm if setShowForm is available (not in edit mode within list)
+      if (setShowForm) {
+        setShowForm(true);
+      }
     }
-  }, [editRecord]);
+  }, [editRecord, setShowForm]);
 
   async function uploadAndCreate() {
     if (!file) return;
@@ -248,13 +250,17 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
       console.error(err);
       alert(`Save failed: ${err?.message ?? err}`);
     } finally {
-      setShowForm(false);
+      if (setShowForm) {
+        setShowForm(false);
+      }
       setSaving(false);
     }
   }
 
   function handleShowForm() {
-    setShowForm(true);
+    if (setShowForm) {
+      setShowForm(true);
+    }
     // Set start time to now
     const now = new Date();
     const offsetMs = now.getTimezoneOffset() * 60000;
@@ -264,7 +270,9 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
   }
 
   function handleCancelForm() {
-    setShowForm(false);
+    if (setShowForm) {
+      setShowForm(false);
+    }
     // Clear all form values
     setTitle("");
     setStart("");
@@ -300,7 +308,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit })
 
   return (
     <div className="container" style={{ display: "flex"  }}>
-      {showForm && (
+      {(showForm || isEditMode) && (
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, width: "100%" }}>
           <div style={{ display: "grid", gap: 6 }}>
             <label style={{ fontWeight: 600 }}>Title *</label>

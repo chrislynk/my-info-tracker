@@ -20,7 +20,7 @@ Amplify.configure(outputs);
 
 const client = generateClient();
 
-export default function RecordList({ searchItem, setSearchItem, templateFilter }) {
+export default function RecordList({ searchItem, templateFilter }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
@@ -48,10 +48,6 @@ export default function RecordList({ searchItem, setSearchItem, templateFilter }
       default:
         return null;
     }
-  };
-
-  const searchChange = (e) => {
-    setSearchItem(e.target.value);
   };
 
   async function load() {
@@ -151,19 +147,12 @@ export default function RecordList({ searchItem, setSearchItem, templateFilter }
 
   return (
     <div>
-      <input
-        type="text"
-        value={searchItem}
-        onChange={searchChange}
-        placeholder='Type to search'
-        style={{ padding: 10, fontSize: "16px", width: "-webkit-fill-available", marginBottom: 12 }}
-      />
       {filteredRecords.map((r) => (
         <div
           key={r.id}
           style={selectedId === r.id ? 
             {border: "1px solid #1E96C8", borderRadius: 8, padding: 12, marginBottom: 12, boxShadow: "rgba(30, 150, 200, 0.25) 5px 5px 5px 2px"} : 
-            {border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12}
+            {border: "1px solid #1E96C8", borderRadius: 8, padding: 12, marginBottom: 12}
           }
         >
           {selectedId === r.id ? (
