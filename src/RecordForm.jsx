@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { uploadData, remove } from "aws-amplify/storage";
 import { generateClient } from "aws-amplify/data";
 import ReactMarkdown from "react-markdown";
@@ -17,6 +17,7 @@ import AddCircleIcon from '@mui/icons-material/AddCircle';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import { Amplify } from "aws-amplify";
 import outputs from "../amplify_outputs.json";
+import { Block } from "@mui/icons-material";
 Amplify.configure(outputs);
 
 const client = generateClient();
@@ -44,28 +45,51 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
 
   const isEditMode = !!editRecord;
 
+  // If templateFilter is "Project", treat it as no filter. Otherwise, use it as a hard-coded template value.
+  const effectiveTemplateFilter = templateFilter?.toLowerCase() === 'project' ? null : templateFilter;
+
+  const divRef = useRef(null);
+
   const [title, setTitle] = useState("");
   const [start, setStart] = useState(""); // datetime-local
   const [end, setEnd] = useState(""); // datetime-local
   const [notes, setNotes] = useState("");
   const [template, setTemplate] = useState("");
   const [status, setStatus] = useState("");
-  const [grouping, setGrouping] = useState("");
+  const [project, setProject] = useState("");
+  const [group, setGroup] = useState("");
   const [imageFile, setImageFile] = useState(null);
 
+  const [existingProjects, setExistingProjects] = useState([]);
+  const [existingGroups, setExistingGroups] = useState([]);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [showGroupDropdown, setShowGroupDropdown] = useState(false);
+  const [showNewProjectInput, setShowNewProjectInput] = useState(false);
+  const [showNewGroupInput, setShowNewGroupInput] = useState(false);
+  const [newProjectInput, setNewProjectInput] = useState("");
+  const [newGroupInput, setNewGroupInput] = useState("");
+  const [ungroupedGroups, setUngroupedGroups] = useState([]);
+
+  const [groupsByProject, setGroupsByProject] = useState({});
+  const filteredGroups = useMemo(() => {
+    const p = project.trim();
+    if (!p) return ungroupedGroups; // no project selected => show all
+    return (groupsByProject[p] ?? []).slice().sort();
+  }, [project, groupsByProject, ungroupedGroups]);
+
   const [existingTemplates, setExistingTemplates] = useState([]);
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+
   const [existingTags, setExistingTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
   const [showNewTagInput, setShowNewTagInput] = useState(false);
   const [newTagInput, setNewTagInput] = useState("");
-  
-  const [imagePreview, setImagePreview] = useState(null);
-  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const [showTagDropdown, setShowTagDropdown] = useState(false);
-
   const tags = useMemo(() => {
     return selectedTags.length ? selectedTags : null;
   }, [selectedTags]);
+  
+  const [imagePreview, setImagePreview] = useState(null);
 
   const getTemplateIcon = (template) => {
     if (!template) return null;
@@ -90,6 +114,13 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
         return null;
     }
   };
+  
+  // Set template from effectiveTemplateFilter when not in edit mode
+  useEffect(() => {
+    if (!isEditMode && effectiveTemplateFilter) {
+      setTemplate(effectiveTemplateFilter);
+    }
+  }, [effectiveTemplateFilter, isEditMode]);
 
   useEffect(() => {
     async function loadTemplatesAndTags() {
@@ -121,6 +152,69 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
     return () => window.removeEventListener("records:changed", handler);
   }, []);
 
+  useEffect(() => {
+    async function loadGroupings() {
+      try {
+        const { data } = await client.models.Record.list({ limit: 500 });
+
+        // Parse groupings into project and group
+        const allProjects = [];
+        const allGroups = [];
+
+        const map = {}; // project -> Set(groups)
+        const unassigned = new Set();
+
+        data.forEach(r => {
+          if (!r.grouping) return;
+
+          const match = r.grouping.match(/^\[(.*?)\]\s*(.*)$/);
+          if (match) {
+            const [, pRaw, gRaw] = match;
+            const p = (pRaw ?? "").trim();
+            const g = (gRaw ?? "").trim();
+
+            if (p) allProjects.push(p);
+            if (g) allGroups.push(g);
+
+            if (p && g) {
+              if (!map[p]) map[p] = new Set();
+              map[p].add(g);
+            }
+          } else {
+            // no project → unassigned group
+            const g = r.grouping.trim();
+            if (g) {
+              unassigned.add(g);
+              allGroups.push(g);
+            }
+          }
+        });
+
+        const uniqueProjects = [...new Set(allProjects)].filter(Boolean).sort();
+        const uniqueGroups = [...new Set(allGroups)].filter(Boolean).sort();
+
+        // convert Set -> array
+        const normalizedMap = Object.fromEntries(
+          Object.entries(map).map(([p, set]) => [p, [...set].sort()])
+        );
+
+        setExistingProjects(uniqueProjects);
+        setExistingGroups(uniqueGroups);
+        setGroupsByProject(normalizedMap);
+
+        setUngroupedGroups([...unassigned].sort());
+
+      } catch (err) {
+        console.error("Failed to load projects and groups:", err);
+      }
+    }
+
+    loadGroupings();
+    const handler = () => loadGroupings();
+    window.addEventListener("records:changed", handler);
+    return () => window.removeEventListener("records:changed", handler);
+  }, []);
+
   // Populate form when editRecord changes
   useEffect(() => {
     if (editRecord) {
@@ -132,7 +226,24 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
       setSelectedTags(editRecord.tags ?? []);
       setTemplate(editRecord.template ?? "");
       setStatus(editRecord.status ?? "");
-      setGrouping(editRecord.grouping ?? "");
+
+      // Parse grouping into project and group
+      if (editRecord.grouping) {
+        const match = editRecord.grouping.match(/^\[(.*?)\]\s*(.*)$/);
+        if (match) {
+          const [, projectPart, groupPart] = match;
+          setProject(projectPart || "");
+          setGroup(groupPart || "");
+        } else {
+          // If no brackets, treat entire string as group
+          setProject("");
+          setGroup(editRecord.grouping);
+        }
+      } else {
+        setProject("");
+        setGroup("");
+      }
+
       setImageFile(null);
       setImagePreview(editRecord.imageUrl ?? null);
       // Only set showForm if setShowForm is available (not in edit mode within list)
@@ -181,6 +292,19 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
         }).result;
       }
 
+      // Combine project and group into grouping format
+      let combinedGrouping = null;
+      const trimmedProject = project.trim();
+      const trimmedGroup = group.trim();
+
+      if (trimmedProject && trimmedGroup) {
+        combinedGrouping = `[${trimmedProject}] ${trimmedGroup}`;
+      } else if (trimmedGroup) {
+        combinedGrouping = trimmedGroup;
+      } else if (trimmedProject) {
+        combinedGrouping = `[${trimmedProject}]`;
+      }
+
       const payload = {
         title: title.trim(),
         start: toIsoOrNull(start),
@@ -189,7 +313,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
         tags,
         template: template.trim() ? template.trim() : null,
         status: status.trim() ? status.trim() : null,
-        grouping: grouping.trim() ? grouping.trim() : null,
+        grouping: combinedGrouping,
         imageKey: nextImageKey,
       };
 
@@ -231,13 +355,20 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
       setSelectedTags([]);
       setTemplate("");
       setStatus("");
-      setGrouping("");
+      setProject("");
+      setGroup("");
       setImageFile(null);
       setImagePreview(null);
       setShowNewTagInput(false);
       setNewTagInput("");
       setShowTagDropdown(false);
       setShowTemplateDropdown(false);
+      setShowProjectDropdown(false);
+      setShowGroupDropdown(false);
+      setShowNewProjectInput(false);
+      setShowNewGroupInput(false);
+      setNewProjectInput("");
+      setNewGroupInput("");
 
       // Let the list know to refresh
       window.dispatchEvent(new Event("records:changed"));
@@ -270,6 +401,8 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
   }
 
   function handleCancelForm() {
+    
+    divRef.current?.scrollIntoView({ top: 0, behavior: "smooth" });
     if (setShowForm) {
       setShowForm(false);
     }
@@ -281,13 +414,20 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
     setSelectedTags([]);
     setTemplate("");
     setStatus("");
-    setGrouping("");
+    setProject("");
+    setGroup("");
     setImageFile(null);
     setImagePreview(null);
     setShowNewTagInput(false);
     setNewTagInput("");
     setShowTagDropdown(false);
     setShowTemplateDropdown(false);
+    setShowProjectDropdown(false);
+    setShowGroupDropdown(false);
+    setShowNewProjectInput(false);
+    setShowNewGroupInput(false);
+    setNewProjectInput("");
+    setNewGroupInput("");
 
     // Call onCancelEdit if in edit mode
     if (isEditMode && onCancelEdit) {
@@ -300,10 +440,6 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
     const turndownService = new TurndownService();
     const markdown = turndownService.turndown(e.target.value)
     setNotes(markdown)
-  }
-
-  function getHtmlFromMarkdown(markdown) {  
-    return <ReactMarkdown>{markdown}</ReactMarkdown>;
   }
 
   return (
@@ -385,21 +521,30 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
             <Editor value={noteHtml} onChange={onEditChange} />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+          <div ref={divRef} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
             <div style={{ display: "grid", gap: 6 }}>
               <label style={{ fontWeight: 600 }}>Template</label>
               <div style={{ position: "relative" }}>
-                <div className="input" onClick={() => {setShowTemplateDropdown(!showTemplateDropdown); setShowTagDropdown(false);}}>
-                  {(templateFilter || template) ? (
+                <div
+                  className="input"
+                  onClick={() => {
+                    if (!effectiveTemplateFilter) {
+                      setShowTemplateDropdown(!showTemplateDropdown);
+                      setShowTagDropdown(false);
+                    }
+                  }}
+                  style={{ cursor: effectiveTemplateFilter ? 'default' : 'pointer', opacity: effectiveTemplateFilter ? 0.7 : 1 }}
+                >
+                  {(effectiveTemplateFilter || template) ? (
                     <div style={{ display: "flex", alignItems: "center" }}>
-                      {getTemplateIcon(templateFilter || template)}
-                      <span>{templateFilter || template}</span>
+                      {getTemplateIcon(effectiveTemplateFilter || template)}
+                      <span>{effectiveTemplateFilter || template}</span>
                     </div>
                   ) : (
                     <span>-- Select or leave empty --</span>
                   )}
                 </div >
-                {showTemplateDropdown && (
+                {showTemplateDropdown && !effectiveTemplateFilter && (
                   <div className="dropDown">
                     <div
                       onClick={() => {
@@ -473,9 +618,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                   }}
                   className="input"
                 >
-                  {selectedTags.length > 0 ? (
-                    <div className="dropDown" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {selectedTags.map(tag => (
+                  {selectedTags.map(tag => (
                         <span
                           key={tag}
                           style={{
@@ -507,6 +650,9 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                           </button>
                         </span>
                       ))}
+                  {selectedTags.length > 0 ? (
+                    <div className="dropDown" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      
                     </div>
                   ) : (
                     <span style={{ color: "#999" }}>Select tags...</span>
@@ -562,6 +708,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                                 setShowNewTagInput(false);
                               }
                             }}
+                            style={{ width: "60%" }}
                           />
                           <button
                             type="button"
@@ -575,6 +722,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                               setShowNewTagInput(false);
                             }}
                             className="txt-button"
+                            style={{ width: "30%" }}
                           >
                             Add
                           </button>
@@ -584,7 +732,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                               setNewTagInput("");
                               setShowNewTagInput(false);
                             }}
-                            style={{ padding: "4px 12px" }}
+                            style={{ padding: "4px 12px", width: "10%" }}
                           >
                             ×
                           </button>
@@ -596,17 +744,252 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
               </div>
             </div>
             
-          <div style={{ display: "grid", gap: 6 }}>
-            <label style={{ fontWeight: 600 }}>Grouping</label>
-            <input
-              value={grouping}
-              onChange={(e) => setGrouping(e.target.value)}
-              placeholder="e.g., 2026, fitness, work"
-              style={{ padding: 10, fontSize: "16px" }}
-            />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, padding: 6, border: "1px solid #ccc", borderRadius: 4 }}>
+            <div style={{ display: "grid", gap: 6 }}>
+              <label style={{ fontWeight: 600 }}>Project</label>
+              <div style={{ position: "relative" }}>
+                <div
+                  className="input"
+                  onClick={() => {
+                    setShowProjectDropdown(!showProjectDropdown);
+                    setShowGroupDropdown(false);
+                    setShowTagDropdown(false);
+                    setShowTemplateDropdown(false);
+                  }}
+                >
+                  {project ? (
+                    <span>{project}</span>
+                  ) : (
+                    <span style={{ color: "#999" }}>-- Select or add new --</span>
+                  )}
+                </div>
+                {showProjectDropdown && (
+                  <div className="dropDown">
+                    <div
+                      onClick={() => {
+                        setProject("");
+                        setShowProjectDropdown(false);
+                      }}
+                      style={{
+                        padding: "8px 12px",
+                        cursor: "pointer"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.className = "hover"}
+                      onMouseLeave={(e) => e.currentTarget.className = ""}
+                    >
+                      -- None --
+                    </div>
+                    {existingProjects.map(p => (
+                      <div
+                        key={p}
+                        onClick={() => {
+                          setProject(p);
+                          setGroup(""); // reset group when project changes
+                          setShowProjectDropdown(false);
+                        }}
+                        style={{
+                          padding: "8px 12px",
+                          cursor: "pointer"
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.className = "hover"}
+                        onMouseLeave={(e) => e.currentTarget.className = ""}
+                      >
+                        {p}
+                      </div>
+                    ))}
+                    <div style={{ borderTop: "1px solid #ccc", marginTop: 4, paddingTop: 4 }}>
+                      {!showNewProjectInput ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowNewProjectInput(true);
+                          }}
+                          style={{ width: "100%" }}
+                        >
+                          + Add new project
+                        </button>
+                      ) : (
+                        <div style={{ display: "flex", gap: 6, padding: "4px 8px" }}>
+                          <input
+                            type="text"
+                            value={newProjectInput}
+                            onChange={(e) => setNewProjectInput(e.target.value)}
+                            placeholder="Enter new project"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                const trimmed = newProjectInput.trim();
+                                if (trimmed) {
+                                  setProject(trimmed);
+                                  setGroup(""); // reset group when project changes
+                                  setExistingProjects([...existingProjects, trimmed].sort());
+                                }
+                                setNewProjectInput("");
+                                setShowNewProjectInput(false);
+                                setShowProjectDropdown(false);
+                              }
+                            }}
+                            style={{ flex: 1 }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const trimmed = newProjectInput.trim();
+                              if (trimmed) {
+                                setProject(trimmed);
+                                setGroup(""); // reset group when project changes
+                                setExistingProjects([...existingProjects, trimmed].sort());
+                              }
+                              setNewProjectInput("");
+                              setShowNewProjectInput(false);
+                              setShowProjectDropdown(false);
+                            }}
+                            style={{ padding: "4px 8px" }}
+                          >
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewProjectInput("");
+                              setShowNewProjectInput(false);
+                            }}
+                            style={{ padding: "4px 8px" }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 6 }}>
+              <label style={{ fontWeight: 600 }}>Group</label>
+              <div style={{ position: "relative" }}>
+                <div
+                  className="input"
+                  onClick={() => {
+                    setShowGroupDropdown(!showGroupDropdown);
+                    setShowProjectDropdown(false);
+                    setShowTagDropdown(false);
+                    setShowTemplateDropdown(false);
+                  }}
+                >
+                  {group ? (
+                    <span>{group}</span>
+                  ) : (
+                    <span style={{ color: "#999" }}>-- Select or add new --</span>
+                  )}
+                </div>
+                {showGroupDropdown && (
+                  <div className="dropDown">
+                    <div
+                      onClick={() => {
+                        setGroup("");
+                        setShowGroupDropdown(false);
+                      }}
+                      style={{
+                        padding: "8px 12px",
+                        cursor: "pointer"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.className = "hover"}
+                      onMouseLeave={(e) => e.currentTarget.className = ""}
+                    >
+                      -- None --
+                    </div>
+                    {filteredGroups.map(g => (
+                      <div
+                        key={g}
+                        onClick={() => {
+                          setGroup(g);
+                          setShowGroupDropdown(false);
+                        }}
+                        style={{
+                          padding: "8px 12px",
+                          cursor: "pointer"
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.className = "hover"}
+                        onMouseLeave={(e) => e.currentTarget.className = ""}
+                      >
+                        {g}
+                      </div>
+                    ))}
+                    <div style={{ borderTop: "1px solid #ccc", marginTop: 4, paddingTop: 4 }}>
+                      {!showNewGroupInput ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowNewGroupInput(true);
+                          }}
+                          style={{ width: "100%" }}
+                        >
+                          + Add new group
+                        </button>
+                      ) : (
+                        <div style={{ display: "flex", gap: 6, padding: "4px 8px" }}>
+                          <input
+                            type="text"
+                            value={newGroupInput}
+                            onChange={(e) => setNewGroupInput(e.target.value)}
+                            placeholder="Enter new group"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                const trimmed = newGroupInput.trim();
+                                if (trimmed) {
+                                  setGroup(trimmed);
+                                  setExistingGroups([...existingGroups, trimmed].sort());
+                                }
+                                setNewGroupInput("");
+                                setShowNewGroupInput(false);
+                                setShowGroupDropdown(false);
+                              }
+                            }}
+                            style={{ flex: 1 }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const trimmed = newGroupInput.trim();
+                              if (trimmed) {
+                                setGroup(trimmed);
+                                setExistingGroups([...existingGroups, trimmed].sort());
+                              }
+                              setNewGroupInput("");
+                              setShowNewGroupInput(false);
+                              setShowGroupDropdown(false);
+                            }}
+                            style={{ padding: "4px 8px" }}
+                          >
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewGroupInput("");
+                              setShowNewGroupInput(false);
+                            }}
+                            style={{ padding: "4px 8px" }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, padding: 6, border: "1px solid #ccc", borderRadius: 4 }}>
             <div style={{ display: "grid", gap: 6 }}>
               <label style={{ fontWeight: 600 }}>Start</label>
               <input
