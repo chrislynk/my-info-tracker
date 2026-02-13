@@ -651,7 +651,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                         </span>
                       ))}
                   {selectedTags.length > 0 ? (
-                    <div className="dropDown" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    <div className="dropDown" style={{ display: "flex", gap: 6 }}>
                       
                     </div>
                   ) : (

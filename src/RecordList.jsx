@@ -30,7 +30,7 @@ export default function RecordList({ searchItem, templateFilter }) {
   const [selectedId, setSelectedId] = useState(null);
   const [editingRecord, setEditingRecord] = useState(null);
   const [filteredRecords, setFilteredRecords] = useState([]);
-  const [collapsedProjects, setCollapsedProjects] = useState({});
+  const [collapsedTopics, setCollapsedTopics] = useState({});
   const [collapsedGroups, setCollapsedGroups] = useState({});
 
   const getTemplateIcon = (template) => {
@@ -55,63 +55,88 @@ export default function RecordList({ searchItem, templateFilter }) {
     }
   };
 
-  const parseGrouping = (grouping) => {
-    if (!grouping) return { project: 'Uncategorized', group: 'Uncategorized' };
+  const getTopic = (grouping) => {
+    if (!grouping) return null;
+    const match = grouping.match(/\[(.*?)\]/);
+    return match ? match[1].trim() : null;
+  }
 
-    const match = grouping.match(/\[(.*?)\](.*)/);
-    if (match) {
-      return {
-        project: match[1].trim() || 'Uncategorized',
-        group: match[2].trim() || 'Uncategorized'
+  const getGroup = (grouping) => {
+    if (!grouping) return null;
+    const match = grouping.match(/\](.*)/);
+    if(!match) return grouping.trim();
+    return match ? match[1].trim() : grouping.trim();
+  }
+
+  const groupRecordsByGrouping = (records) => {
+    const grouped = {};
+
+    records.forEach(record => {
+      const { topic, group } = { 
+        topic: getTopic(record.grouping) || 'Uncategorized', 
+        group: getGroup(record.grouping) || 'Uncategorized' 
       };
-    }
-    return { project: 'Uncategorized', group: grouping.trim() || 'Uncategorized' };
+
+      if (!grouped[topic]) {
+        grouped[topic] = {};
+      }
+
+      if (!grouped[topic][group]) {
+        grouped[topic][group] = [];
+      }
+
+      grouped[topic][group].push(record);
+    });
+    return grouped;
   };
 
-  const toggleProject = (projectName) => {
-    setCollapsedProjects(prev => ({
+  const groupRecordsByToDo = (records) => {
+    const grouped = {};
+
+    records.forEach(record => {
+      const { topic, group } = { 
+        topic: getTopic(record.grouping) || "* " + record.status, 
+        group: getGroup(record.grouping) || 'Uncategorized' 
+      };
+
+      if (!grouped[topic]) {
+        grouped[topic] = {};
+      }
+
+      if (!grouped[topic][group]) {
+        grouped[topic][group] = [];
+      }
+
+      grouped[topic][group].push(record);
+    });
+    return grouped;
+  };
+
+  const toggleTopic = (topicName) => {
+    setCollapsedTopics(prev => ({
       ...prev,
-      [projectName]: !prev[projectName]
+      [topicName]: !prev[topicName]
     }));
   };
 
-  const toggleGroup = (projectName, groupName) => {
-    const key = `${projectName}::${groupName}`;
+  const toggleGroup = (topicName, groupName) => {
+    const key = `${topicName}::${groupName}`;
     setCollapsedGroups(prev => ({
       ...prev,
       [key]: !prev[key]
     }));
   };
 
-  const toggleAllGroupsInProject = (projectName, groupNames, shouldCollapse) => {
+  const toggleAllGroupsInTopic = (topicName, groupNames, shouldCollapse) => {
     const updates = {};
     groupNames.forEach(groupName => {
-      const key = `${projectName}::${groupName}`;
+      const key = `${topicName}::${groupName}`;
       updates[key] = shouldCollapse;
     });
     setCollapsedGroups(prev => ({
       ...prev,
       ...updates
     }));
-  };
-
-  const groupRecordsByProjectAndGroup = (records) => {
-    const grouped = {};
-
-    records.forEach(record => {
-      const { project, group } = parseGrouping(record.grouping);
-
-      if (!grouped[project]) {
-        grouped[project] = {};
-      }
-
-      if (!grouped[project][group]) {
-        grouped[project][group] = [];
-      }
-
-      grouped[project][group].push(record);
-    });
-    return grouped;
   };
 
   async function load() {
@@ -146,8 +171,13 @@ export default function RecordList({ searchItem, templateFilter }) {
       switch (tf) {
         case "project":
           items = items.filter((record) => 
-            (record.grouping ?? "").includes("[") &&
-            (record.grouping ?? "").includes("]")
+             getTopic(record.grouping) !== null
+          );
+          break;
+        case "todo":
+          items = items.filter((record) => 
+            (record.template ?? "").toLowerCase() === "todo" && 
+            (record.status === "Open" || record.status === "In Progress")
           );
           break;
         default:
@@ -221,7 +251,7 @@ export default function RecordList({ searchItem, templateFilter }) {
           <RecordForm templateFilter={templateFilter} editRecord={editingRecord} onCancelEdit={cancelEdit} />
         ) : (
           <> {/* Select */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8}}>
               <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", minWidth: 0 }}>
                 {getTemplateIcon(r.template)}
                 <strong style={{ fontSize: "16px", wordBreak: "break-word" }}>{r.title}</strong>
@@ -245,7 +275,7 @@ export default function RecordList({ searchItem, templateFilter }) {
               <ReactMarkdown>{r.notes}</ReactMarkdown>
               </div>
             )}
-            <div style={{ display: "flex", gap: 6, justifyContent: "space-between", flexWrap: "wrap", marginTop: 8 }}>
+            <div style={{ display: "flex", gap: 6, justifyContent: "space-between", marginTop: 8 }}>
               <IconButton aria-label="select" onClick={() => deleteRecord(r)}>
                 <DeleteForeverOutlinedIcon />
               </IconButton>
@@ -257,7 +287,7 @@ export default function RecordList({ searchItem, templateFilter }) {
         )
       ) : (
         <> {/* list-itewm */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8}}>
             <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", minWidth: 0 }}>
               {getTemplateIcon(r.template)}
               <strong style={{ fontSize: "16px", wordBreak: "break-word" }}>{r.title}</strong>
@@ -273,13 +303,11 @@ export default function RecordList({ searchItem, templateFilter }) {
             {r.grouping && <>{r.grouping}</>}
             {r.status && <> ({r.status}) </>}
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-start", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", justifyContent: "flex-start", gap: 8 }}>
             {r.imageUrl && (
               <img src={r.imageUrl} alt="" style={{ maxHeight: "5em", maxWidth: "100%", height: "auto" }} />
             )}
-
               {r.notes && <div style={{ maxHeight: "5em", overflow: "auto", flex: "1 1 auto", fontSize: "14px" }}>{r.notes}</div>}
-
           </div>
         </>
       )}
@@ -287,25 +315,29 @@ export default function RecordList({ searchItem, templateFilter }) {
   );
 
   // Render grouped view for project template filter
-  if (templateFilter?.toLowerCase() === 'project') {
-    const groupedData = groupRecordsByProjectAndGroup(filteredRecords);
-    const projectNames = Object.keys(groupedData).sort();
+  if (templateFilter?.toLowerCase() === 'project' ||
+      templateFilter?.toLowerCase() === 'todo') {
+    const groupedData = (templateFilter?.toLowerCase() === 'project' ? 
+      groupRecordsByGrouping(filteredRecords) : 
+      groupRecordsByToDo(filteredRecords)
+    );
+    const topicNames = Object.keys(groupedData).sort();
 
     return (
       <div>
-        {projectNames.map(projectName => {
-          const projectGroups = groupedData[projectName];
-          const groupNames = Object.keys(projectGroups).sort();
-          const projectCount = groupNames.reduce((sum, groupName) => sum + projectGroups[groupName].length, 0);
-          const isProjectCollapsed = collapsedProjects[projectName];
+        {topicNames.map(topicName => {
+          const topicGroups = groupedData[topicName];
+          const groupNames = Object.keys(topicGroups).sort();
+          const topicCount = groupNames.reduce((sum, groupName) => sum + topicGroups[groupName].length, 0);
+          const isTopicCollapsed = collapsedTopics[topicName];
 
           const allGroupsCollapsed = groupNames.every(groupName =>
-            collapsedGroups[`${projectName}::${groupName}`] === true
+            collapsedGroups[`${topicName}::${groupName}`] === true
           );
 
           return (
-            <div key={projectName} style={{ marginBottom: 16 }}>
-              {/* Project Header */}
+            <div key={topicName} style={{ marginBottom: 16 }}>
+              {/* Topic Header */}
               <div
                 style={{
                   backgroundColor: '#1E96C8',
@@ -321,17 +353,17 @@ export default function RecordList({ searchItem, templateFilter }) {
                 }}
               >
                 <span
-                  onClick={() => toggleProject(projectName)}
+                  onClick={() => toggleTopic(topicName)}
                   style={{ cursor: 'pointer', flex: 1 }}
                 >
-                  {projectName} ({projectCount})
+                  {topicName} ({topicCount})
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {!isProjectCollapsed && (
+                  {!isTopicCollapsed && (
                     <IconButton
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggleAllGroupsInProject(projectName, groupNames, !allGroupsCollapsed);
+                        toggleAllGroupsInTopic(topicName, groupNames, !allGroupsCollapsed);
                       }}
                       title={allGroupsCollapsed ? 'Expand all groups' : 'Collapse all groups'}
                       sx={{
@@ -349,17 +381,17 @@ export default function RecordList({ searchItem, templateFilter }) {
                 </div>
               </div>
 
-              {/* Groups within Project */}
-              {!isProjectCollapsed && groupNames.map(groupName => {
-                const groupRecords = projectGroups[groupName];
-                const groupKey = `${projectName}::${groupName}`;
+              {/* Groups within Topic */}
+              {!isTopicCollapsed && groupNames.map(groupName => {
+                const groupRecords = topicGroups[groupName];
+                const groupKey = `${topicName}::${groupName}`;
                 const isGroupCollapsed = collapsedGroups[groupKey];
 
                 return (
                   <div key={groupKey} style={{ marginLeft: 16, marginBottom: 12 }}>
                     {/* Group Header */}
                     <div
-                      onClick={() => toggleGroup(projectName, groupName)}
+                      onClick={() => toggleGroup(topicName, groupName)}
                       style={{
                         cursor: 'pointer',
                         backgroundColor: '#E3F2FD',
