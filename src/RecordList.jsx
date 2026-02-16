@@ -3,12 +3,6 @@ import { generateClient } from "aws-amplify/data";
 import { getUrl, remove } from "aws-amplify/storage";
 import IconButton from '@mui/material/IconButton'
 import ReactMarkdown from "react-markdown";
-import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
-import StackedLineChartIcon from '@mui/icons-material/StackedLineChart';
-import AutoStoriesIcon from '@mui/icons-material/AutoStories';
-import ListIcon from '@mui/icons-material/List';
-import CollectionsIcon from '@mui/icons-material/Collections';
 import SpokeOutlinedIcon from '@mui/icons-material/SpokeOutlined';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import BorderColorOutlinedIcon from '@mui/icons-material/BorderColorOutlined';
@@ -17,14 +11,17 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import UnfoldLessIcon from '@mui/icons-material/UnfoldLess';
 import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
+import AddCircleIcon from '@mui/icons-material/AddCircleOutlined';
 import RecordForm from "./RecordForm";
 import { Amplify } from "aws-amplify";
 import outputs from "../amplify_outputs.json";
+import { getTemplateIcon } from "./utils/iconUtils";
+import { parseGrouping } from "./utils/groupingUtils";
 Amplify.configure(outputs);
 
 const client = generateClient();
 
-export default function RecordList({ searchItem, templateFilter }) {
+export default function RecordList({ searchItem, templateFilter, showForm }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
@@ -33,59 +30,23 @@ export default function RecordList({ searchItem, templateFilter }) {
   const [collapsedTopics, setCollapsedTopics] = useState({});
   const [collapsedGroups, setCollapsedGroups] = useState({});
 
-  const getTemplateIcon = (template) => {
-    if (!template) return null;
-    const templateLower = template.toLowerCase();
-
-    switch (templateLower) {
-      case 'todo':
-        return <PlaylistAddCheckIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
-      case 'project':
-        return <AccountTreeIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
-      case 'tracker':
-        return <StackedLineChartIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
-      case 'diary':
-        return <AutoStoriesIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
-      case 'list':
-        return <ListIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
-      case 'collection':
-        return <CollectionsIcon style={{ fontSize: "1.2em", marginRight: 6 }} />;
-      default:
-        return null;
-    }
-  };
-
-  const getTopic = (grouping) => {
-    if (!grouping) return null;
-    const match = grouping.match(/\[(.*?)\]/);
-    return match ? match[1].trim() : null;
-  }
-
-  const getGroup = (grouping) => {
-    if (!grouping) return null;
-    const match = grouping.match(/\](.*)/);
-    if(!match) return grouping.trim();
-    return match ? match[1].trim() : grouping.trim();
-  }
-
   const groupRecordsByGrouping = (records) => {
     const grouped = {};
 
     records.forEach(record => {
-      const { topic, group } = { 
-        topic: getTopic(record.grouping) || 'Uncategorized', 
-        group: getGroup(record.grouping) || 'Uncategorized' 
-      };
+      const { project, group } = parseGrouping(record.grouping);
+      const topic = project || 'Uncategorized';
+      const groupName = group || 'Uncategorized';
 
       if (!grouped[topic]) {
         grouped[topic] = {};
       }
 
-      if (!grouped[topic][group]) {
-        grouped[topic][group] = [];
+      if (!grouped[topic][groupName]) {
+        grouped[topic][groupName] = [];
       }
 
-      grouped[topic][group].push(record);
+      grouped[topic][groupName].push(record);
     });
     return grouped;
   };
@@ -94,20 +55,19 @@ export default function RecordList({ searchItem, templateFilter }) {
     const grouped = {};
 
     records.forEach(record => {
-      const { topic, group } = { 
-        topic: getTopic(record.grouping) || "* " + record.status, 
-        group: getGroup(record.grouping) || 'Uncategorized' 
-      };
+      const { project, group } = parseGrouping(record.grouping);
+      const topic = project || "* " + record.status;
+      const groupName = group || 'Uncategorized';
 
       if (!grouped[topic]) {
         grouped[topic] = {};
       }
 
-      if (!grouped[topic][group]) {
-        grouped[topic][group] = [];
+      if (!grouped[topic][groupName]) {
+        grouped[topic][groupName] = [];
       }
 
-      grouped[topic][group].push(record);
+      grouped[topic][groupName].push(record);
     });
     return grouped;
   };
@@ -170,18 +130,19 @@ export default function RecordList({ searchItem, templateFilter }) {
       const tf = templateFilter.toLowerCase();
       switch (tf) {
         case "project":
-          items = items.filter((record) => 
-             getTopic(record.grouping) !== null
-          );
+          items = items.filter((record) => {
+            const { project } = parseGrouping(record.grouping);
+            return project !== null;
+          });
           break;
         case "todo":
-          items = items.filter((record) => 
-            (record.template ?? "").toLowerCase() === "todo" && 
+          items = items.filter((record) =>
+            (record.template ?? "").toLowerCase() === "todo" &&
             (record.status === "Open" || record.status === "In Progress")
           );
           break;
         default:
-          items = items.filter((record) => 
+          items = items.filter((record) =>
             (record.template ?? "").toLowerCase().includes(tf)
           );
           break;
@@ -253,7 +214,7 @@ export default function RecordList({ searchItem, templateFilter }) {
           <> {/* Select */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8}}>
               <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", minWidth: 0 }}>
-                {getTemplateIcon(r.template)}
+                {getTemplateIcon(r.template, "1.2em")}
                 <strong style={{ fontSize: "16px", wordBreak: "break-word" }}>{r.title}</strong>
               </div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
@@ -289,7 +250,7 @@ export default function RecordList({ searchItem, templateFilter }) {
         <> {/* list-itewm */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8}}>
             <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", minWidth: 0 }}>
-              {getTemplateIcon(r.template)}
+              {getTemplateIcon(r.template, "1.2em")}
               <strong style={{ fontSize: "16px", wordBreak: "break-word" }}>{r.title}</strong>
             </div>
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
@@ -349,17 +310,29 @@ export default function RecordList({ searchItem, templateFilter }) {
                   alignItems: 'center',
                   fontWeight: 'bold',
                   fontSize: '18px',
-                  marginBottom: 8
+                  marginBottom: 8,
+                  gap: 12
                 }}
               >
+                  <IconButton  onClick={() => showForm(true)}
+                      title='Add to this topic'
+                      sx={{
+                        color: 'white',
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        padding: '8px',
+                        '&:hover': {
+                          backgroundColor: 'rgba(255, 255, 255, 0.9)'
+                        }
+                      }} >
+                      <AddCircleIcon />
+                    </IconButton>
                 <span
                   onClick={() => toggleTopic(topicName)}
                   style={{ cursor: 'pointer', flex: 1 }}
                 >
                   {topicName} ({topicCount})
                 </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {!isTopicCollapsed && (
+                  {!isTopicCollapsed  && (
                     <IconButton
                       onClick={(e) => {
                         e.stopPropagation();
@@ -377,8 +350,7 @@ export default function RecordList({ searchItem, templateFilter }) {
                     >
                       {allGroupsCollapsed ? <UnfoldMoreIcon /> : <UnfoldLessIcon />}
                     </IconButton>
-                  )}
-                </div>
+                  )}               
               </div>
 
               {/* Groups within Topic */}
@@ -403,10 +375,12 @@ export default function RecordList({ searchItem, templateFilter }) {
                         alignItems: 'center',
                         fontWeight: '600',
                         fontSize: '16px',
-                        marginBottom: 8
+                        marginBottom: 8,
+                        gap: 6
                       }}
                     >
-                      <span>{groupName} ({groupRecords.length})</span>
+                      <AddCircleIcon onClick={() => addRecordToGroup(topicName, groupName)} />
+                      <span style={{ cursor: 'pointer', flex: 1 }}  >{groupName} ({groupRecords.length})</span>
                       {isGroupCollapsed ? <ExpandMoreIcon /> : <ExpandLessIcon />}
                     </div>
 

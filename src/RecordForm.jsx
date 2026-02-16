@@ -7,35 +7,16 @@ import Editor from 'react-simple-wysiwyg';
 import TurndownService from 'turndown';
 import IconButton from '@mui/material/IconButton'
 import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
-import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
-import StackedLineChartIcon from '@mui/icons-material/StackedLineChart';
-import AutoStoriesIcon from '@mui/icons-material/AutoStories';
-import ListIcon from '@mui/icons-material/List';
-import CollectionsIcon from '@mui/icons-material/Collections';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import { Amplify } from "aws-amplify";
 import outputs from "../amplify_outputs.json";
-import { Block } from "@mui/icons-material";
+import { toIsoOrNull, toLocalInputValue } from "./utils/dateUtils";
+import { parseGrouping, formatGrouping } from "./utils/groupingUtils";
+import { getTemplateIcon } from "./utils/iconUtils";
 Amplify.configure(outputs);
 
 const client = generateClient();
-
-function toIsoOrNull(datetimeLocalValue) {
-  // datetime-local returns "YYYY-MM-DDTHH:mm"
-  if (!datetimeLocalValue) return null;
-  const d = new Date(datetimeLocalValue);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
-function toLocalInputValue(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ""
-    : d.toISOString().slice(0, 16);
-}
 
 export default function RecordForm({ templateFilter, editRecord, onCancelEdit, showForm, setShowForm }) {
   const [saving, setSaving] = useState(false);
@@ -90,31 +71,8 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
   }, [selectedTags]);
   
   const [imagePreview, setImagePreview] = useState(null);
+  const [showImageIcon, setShowImageIcon] = useState(true);
 
-  const getTemplateIcon = (template) => {
-    if (!template) return null;
-    const templateLower = template.toLowerCase();
-
-    const iconStyle = { fontSize: "1em", marginRight: 6 };
-
-    switch (templateLower) {
-      case 'todo':
-        return <PlaylistAddCheckIcon style={iconStyle} />;
-      case 'project':
-        return <AccountTreeIcon style={iconStyle} />;
-      case 'tracker':
-        return <StackedLineChartIcon style={iconStyle} />;
-      case 'diary':
-        return <AutoStoriesIcon style={iconStyle} />;
-      case 'list':
-        return <ListIcon style={iconStyle} />;
-      case 'collection':
-        return <CollectionsIcon style={iconStyle} />;
-      default:
-        return null;
-    }
-  };
-  
   // Set template from effectiveTemplateFilter when not in edit mode
   useEffect(() => {
     if (!isEditMode && effectiveTemplateFilter) {
@@ -229,16 +187,9 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
 
       // Parse grouping into project and group
       if (editRecord.grouping) {
-        const match = editRecord.grouping.match(/^\[(.*?)\]\s*(.*)$/);
-        if (match) {
-          const [, projectPart, groupPart] = match;
-          setProject(projectPart || "");
-          setGroup(groupPart || "");
-        } else {
-          // If no brackets, treat entire string as group
-          setProject("");
-          setGroup(editRecord.grouping);
-        }
+        const { project: parsedProject, group: parsedGroup } = parseGrouping(editRecord.grouping);
+        setProject(parsedProject || "");
+        setGroup(parsedGroup || "");
       } else {
         setProject("");
         setGroup("");
@@ -293,17 +244,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
       }
 
       // Combine project and group into grouping format
-      let combinedGrouping = null;
-      const trimmedProject = project.trim();
-      const trimmedGroup = group.trim();
-
-      if (trimmedProject && trimmedGroup) {
-        combinedGrouping = `[${trimmedProject}] ${trimmedGroup}`;
-      } else if (trimmedGroup) {
-        combinedGrouping = trimmedGroup;
-      } else if (trimmedProject) {
-        combinedGrouping = `[${trimmedProject}]`;
-      }
+      const combinedGrouping = formatGrouping(project, group);
 
       const payload = {
         title: title.trim(),
@@ -352,6 +293,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
       setStart("");
       setEnd("");
       setNotes("");
+      setNoteHtml("");
       setSelectedTags([]);
       setTemplate("");
       setStatus("");
@@ -411,6 +353,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
     setStart("");
     setEnd("");
     setNotes("");
+    setNoteHtml("");
     setSelectedTags([]);
     setTemplate("");
     setStatus("");
@@ -428,6 +371,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
     setShowNewGroupInput(false);
     setNewProjectInput("");
     setNewGroupInput("");
+    setShowImageIcon(true);
 
     // Call onCancelEdit if in edit mode
     if (isEditMode && onCancelEdit) {
@@ -448,16 +392,21 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, width: "100%" }}>
           <div style={{ display: "grid", gap: 6 }}>
             <label style={{ fontWeight: 600 }}>Title *</label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Gym session"
-              required
-              style={{ padding: 10, fontSize: "16px" }}
-            />
+            <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g., Gym session"
+                required
+                style={{ padding: 10, fontSize: "16px" }}
+              />
+              {showImageIcon && (
+                <AddAPhotoIcon onClick={() => setShowImageIcon(false)} style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", color: "#999" }} />
+              )}
+            </div>
           </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
+          {!showImageIcon && (<div style={{ display: "grid", gap: 4 }}>
             <input
               id="image-upload-input"
               type="file"
@@ -485,27 +434,27 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                 justifyContent: "center",
                 border: "2px dashed #ccc",
                 borderRadius: 8,
-                padding: 16,
+                padding: 8,
                 cursor: "pointer",
                 transition: "all 0.2s"
               }}
             >
               {imagePreview ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
                   <img
                     src={imagePreview}
                     alt="Preview"
                     style={{
-                      maxWidth: 64,
-                      maxHeight: 64,
+                      maxHeight: 128,
                       objectFit: "contain",
                       borderRadius: 4
                     }}
                   />
                   <div style={{ fontSize: 12, color: "#666" }}>
-                    {imageFile?.name} ({Math.round((imageFile?.size ?? 0) / 1024)} KB)
+                    <span style={{ fontSize: 11, color: "#999" }}> - Click to change - </span>
+                     {imageFile?.name} ({Math.round((imageFile?.size ?? 0) / 1024)} KB)
                   </div>
-                  <div style={{ fontSize: 11, color: "#999" }}>Click to change</div>
+                  
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
@@ -514,7 +463,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                 </div>
               )}
             </label>
-          </div>
+          </div>)}
 
           <div style={{ display: "grid", gap: 6 }}>
             <label style={{ fontWeight: 600 }}>Notes</label>
