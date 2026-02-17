@@ -85,8 +85,15 @@ export default function RecordList({ searchItem, templateFilter, showForm, onSel
       }
 
       // When expanding a topic, set the project context for the form
-      if (onSelectProjectGroup && templateFilter?.toLowerCase() === 'project') {
-        onSelectProjectGroup(topicName === 'Uncategorized' ? '' : topicName, '');
+      if (onSelectProjectGroup) {
+        if (templateFilter?.toLowerCase() === 'project') {
+          onSelectProjectGroup(topicName === 'Uncategorized' ? '' : topicName, '');
+        } else if (templateFilter?.toLowerCase() === 'todo') {
+          // For todo view, only set project if topicName is not a status grouping
+          const isStatusGrouping = topicName.startsWith('* ');
+          const project = isStatusGrouping ? '' : (topicName === 'Uncategorized' ? '' : topicName);
+          onSelectProjectGroup(project, '');
+        }
       }
 
       // Otherwise, close all topics and open only this one
@@ -125,15 +132,16 @@ export default function RecordList({ searchItem, templateFilter, showForm, onSel
 
       // When expanding a group, set the project/group context for the form
       if (onSelectProjectGroup) {
-        // For "project" filter, topicName is the project
-        // For "todo" filter, topicName might be "* Status", so extract project from first record
         if (templateFilter?.toLowerCase() === 'project') {
           onSelectProjectGroup(topicName === 'Uncategorized' ? '' : topicName, groupName === 'Uncategorized' ? '' : groupName);
         } else if (templateFilter?.toLowerCase() === 'todo') {
-          // For todo view, we need to get the actual project from the grouping
-          // topicName could be "* Open" or an actual project name
-          // For now, just set group, leave project empty since todo view has mixed projects
-          onSelectProjectGroup('', groupName === 'Uncategorized' ? '' : groupName);
+          // For todo view, topicName could be "* Open" (status grouping) or an actual project name
+          // If it starts with "* ", it's a status grouping, so no project
+          // Otherwise, it's an actual project name
+          const isStatusGrouping = topicName.startsWith('* ');
+          const project = isStatusGrouping ? '' : (topicName === 'Uncategorized' ? '' : topicName);
+          const group = groupName === 'Uncategorized' ? '' : groupName;
+          onSelectProjectGroup(project, group);
         }
       }
 

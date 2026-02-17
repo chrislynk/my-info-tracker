@@ -37,8 +37,9 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
   const isEditMode = !!editRecord;
 
   // If templateFilter is "Project", treat it as no filter. Otherwise, use it as a hard-coded template value.
-  const effectiveTemplateFilter = templateFilter?.toLowerCase() === 'project' ? 
-  (formState.group ? formState.project+' - '+formState.group : (formState.project ? formState.project : null)) : templateFilter;
+  const effectiveTemplateFilter = 
+    (templateFilter?.toLowerCase() === 'project' ? '': templateFilter) + ' ' +
+    (formState.group ? formState.project+' - '+formState.group : (formState.project ? formState.project : '')) ;
 
   const divRef = useRef(null);
 
