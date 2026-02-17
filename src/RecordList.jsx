@@ -21,7 +21,7 @@ Amplify.configure(outputs);
 
 const client = generateClient();
 
-export default function RecordList({ searchItem, templateFilter, showForm }) {
+export default function RecordList({ searchItem, templateFilter, showForm, onSelectProjectGroup }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
@@ -73,18 +73,75 @@ export default function RecordList({ searchItem, templateFilter, showForm }) {
   };
 
   const toggleTopic = (topicName) => {
-    setCollapsedTopics(prev => ({
-      ...prev,
-      [topicName]: !prev[topicName]
-    }));
+    setCollapsedTopics(prev => {
+      const isCurrentlyCollapsed = prev[topicName];
+
+      // If clicking on an already open topic, close it
+      if (!isCurrentlyCollapsed) {
+        return {
+          ...prev,
+          [topicName]: true
+        };
+      }
+
+      // When expanding a topic, set the project context for the form
+      if (onSelectProjectGroup && templateFilter?.toLowerCase() === 'project') {
+        onSelectProjectGroup(topicName === 'Uncategorized' ? '' : topicName, '');
+      }
+
+      // Otherwise, close all topics and open only this one
+      const allCollapsed = {};
+      Object.keys(prev).forEach(key => {
+        allCollapsed[key] = true;
+      });
+
+      return {
+        ...allCollapsed,
+        [topicName]: false
+      };
+    });
   };
 
-  const toggleGroup = (topicName, groupName) => {
+  const toggleGroup = (topicName, groupName, allGroupNamesInTopic) => {
     const key = `${topicName}::${groupName}`;
-    setCollapsedGroups(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    setCollapsedGroups(prev => {
+      const isCurrentlyCollapsed = prev[key] ?? true;
+
+      // If clicking on an already open group, close it
+      if (!isCurrentlyCollapsed) {
+        return {
+          ...prev,
+          [key]: true
+        };
+      }
+
+      // Otherwise, close all groups in this topic and open only this one
+      const updates = {};
+      allGroupNamesInTopic.forEach(gName => {
+        const gKey = `${topicName}::${gName}`;
+        updates[gKey] = true; // Close all groups
+      });
+      updates[key] = false; // Open the clicked group
+
+      // When expanding a group, set the project/group context for the form
+      if (onSelectProjectGroup) {
+        // For "project" filter, topicName is the project
+        // For "todo" filter, topicName might be "* Status", so extract project from first record
+        if (templateFilter?.toLowerCase() === 'project') {
+          onSelectProjectGroup(topicName === 'Uncategorized' ? '' : topicName, groupName === 'Uncategorized' ? '' : groupName);
+        } else if (templateFilter?.toLowerCase() === 'todo') {
+          // For todo view, we need to get the actual project from the grouping
+          // topicName could be "* Open" or an actual project name
+          // For now, just set group, leave project empty since todo view has mixed projects
+          onSelectProjectGroup('', groupName === 'Uncategorized' ? '' : groupName);
+        }
+      }
+
+      return {
+        ...prev,
+        ...updates
+      };
+    });
   };
 
   const toggleAllGroupsInTopic = (topicName, groupNames, shouldCollapse) => {
@@ -150,6 +207,22 @@ export default function RecordList({ searchItem, templateFilter, showForm }) {
     }
 
     setFilteredRecords(items);
+
+    // Collapse all topics by default when project or todo filter is active
+    if (templateFilter?.toLowerCase() === 'project' || templateFilter?.toLowerCase() === 'todo') {
+      const groupedData = (templateFilter?.toLowerCase() === 'project' ?
+        groupRecordsByGrouping(items) :
+        groupRecordsByToDo(items)
+      );
+      const topicNames = Object.keys(groupedData);
+
+      const collapsed = {};
+      topicNames.forEach(topicName => {
+        collapsed[topicName] = true;
+      });
+
+      setCollapsedTopics(collapsed);
+    }
   }, [records, searchItem, templateFilter]);
 
   useEffect(() => {
@@ -202,41 +275,38 @@ export default function RecordList({ searchItem, templateFilter, showForm }) {
   const renderRecord = (r) => (
     <div
       key={r.id}
-      style={selectedId === r.id ?
-        {border: "1px solid #1E96C8", borderRadius: 8, padding: 12, marginBottom: 12, boxShadow: "rgba(30, 150, 200, 0.25) 5px 5px 5px 2px"} :
-        {border: "1px solid #1E96C8", borderRadius: 8, padding: 12, marginBottom: 12}
-      }
+      className={selectedId === r.id ? "record-card-selected" : "record-card"}
     >
       {selectedId === r.id ? (
         editingRecord?.id === r.id ? (
           <RecordForm templateFilter={templateFilter} editRecord={editingRecord} onCancelEdit={cancelEdit} />
         ) : (
           <> {/* Select */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8}}>
-              <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", minWidth: 0 }}>
+            <div className="record-header gap-8">
+              <div className="record-title-wrapper">
                 {getTemplateIcon(r.template, "1.2em")}
-                <strong style={{ fontSize: "16px", wordBreak: "break-word" }}>{r.title}</strong>
+                <strong className="record-title word-break">{r.title}</strong>
               </div>
-              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <div className="record-actions">
                 <IconButton aria-label="close" onClick={() => { setSelectedId(null); }} >
                   <CloseOutlinedIcon />
                 </IconButton>
               </div>
             </div>
-            <div style={{ fontSize: 12, color: "#555", marginTop: 8 }}>
+            <div className="record-meta">
               {r.template && <>{r.template} · </>}
               {r.grouping && <>{r.grouping}</>}
               {r.status && <> ({r.status}) </>}
             </div>
             {r.imageUrl && (
-              <img src={r.imageUrl} alt="" style={{ display: "block", margin: "8px auto", maxWidth: "100%", height: "auto"}} />
+              <img src={r.imageUrl} alt={r.title ? `Image for ${r.title}` : 'Record image'} className="image-full" />
             )}
             {r.notes && (
-              <div style={{ marginTop: 8, whiteSpace: "pre-wrap", fontSize: "14px"}}>
+              <div className="record-notes">
               <ReactMarkdown>{r.notes}</ReactMarkdown>
               </div>
             )}
-            <div style={{ display: "flex", gap: 6, justifyContent: "space-between", marginTop: 8 }}>
+            <div className="record-footer">
               <IconButton aria-label="select" onClick={() => deleteRecord(r)}>
                 <DeleteForeverOutlinedIcon />
               </IconButton>
@@ -248,27 +318,27 @@ export default function RecordList({ searchItem, templateFilter, showForm }) {
         )
       ) : (
         <> {/* list-itewm */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8}}>
-            <div style={{ display: "flex", alignItems: "center", flex: "1 1 auto", minWidth: 0 }}>
+          <div className="record-header gap-8">
+            <div className="record-title-wrapper">
               {getTemplateIcon(r.template, "1.2em")}
-              <strong style={{ fontSize: "16px", wordBreak: "break-word" }}>{r.title}</strong>
+              <strong className="record-title word-break">{r.title}</strong>
             </div>
-            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+            <div className="record-actions">
               <IconButton aria-label="select" onClick={() => selectId(r)}>
                 <SpokeOutlinedIcon />
               </IconButton>
             </div>
           </div>
-          <div style={{ fontSize: 12, color: "#555", margin: 3 }}>
+          <div className="record-meta-compact">
             {r.template && <>{r.template} · </>}
             {r.grouping && <>{r.grouping}</>}
             {r.status && <> ({r.status}) </>}
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-start", gap: 8 }}>
+          <div className="record-content-flex">
             {r.imageUrl && (
-              <img src={r.imageUrl} alt="" style={{ maxHeight: "5em", maxWidth: "100%", height: "auto" }} />
+              <img src={r.imageUrl} alt={r.title ? `Image for ${r.title}` : 'Record image'} className="image-thumbnail" />
             )}
-              {r.notes && <div style={{ maxHeight: "5em", overflow: "auto", flex: "1 1 auto", fontSize: "14px" }}>{r.notes}</div>}
+              {r.notes && <div className="record-notes-preview">{r.notes}</div>}
           </div>
         </>
       )}
@@ -293,42 +363,17 @@ export default function RecordList({ searchItem, templateFilter, showForm }) {
           const isTopicCollapsed = collapsedTopics[topicName];
 
           const allGroupsCollapsed = groupNames.every(groupName =>
-            collapsedGroups[`${topicName}::${groupName}`] === true
+            collapsedGroups[`${topicName}::${groupName}`] ?? true
           );
 
           return (
-            <div key={topicName} style={{ marginBottom: 16 }}>
+            <div key={topicName} className="topic-container">
               {/* Topic Header */}
-              <div
-                style={{
-                  backgroundColor: '#1E96C8',
-                  color: 'white',
-                  padding: '12px 16px',
-                  borderRadius: 8,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontWeight: 'bold',
-                  fontSize: '18px',
-                  marginBottom: 8,
-                  gap: 12
-                }}
-              >
-                  <IconButton  onClick={() => showForm(true)}
-                      title='Add to this topic'
-                      sx={{
-                        color: 'white',
-                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                        padding: '8px',
-                        '&:hover': {
-                          backgroundColor: 'rgba(255, 255, 255, 0.9)'
-                        }
-                      }} >
-                      <AddCircleIcon />
-                    </IconButton>
+              <div className="topic-header">
+                  
                 <span
                   onClick={() => toggleTopic(topicName)}
-                  style={{ cursor: 'pointer', flex: 1 }}
+                  className="cursor-pointer flex-1"
                 >
                   {topicName} ({topicCount})
                 </span>
@@ -350,43 +395,29 @@ export default function RecordList({ searchItem, templateFilter, showForm }) {
                     >
                       {allGroupsCollapsed ? <UnfoldMoreIcon /> : <UnfoldLessIcon />}
                     </IconButton>
-                  )}               
+                  )}
               </div>
 
               {/* Groups within Topic */}
               {!isTopicCollapsed && groupNames.map(groupName => {
                 const groupRecords = topicGroups[groupName];
                 const groupKey = `${topicName}::${groupName}`;
-                const isGroupCollapsed = collapsedGroups[groupKey];
+                const isGroupCollapsed = collapsedGroups[groupKey] ?? true;
 
                 return (
-                  <div key={groupKey} style={{ marginLeft: 16, marginBottom: 12 }}>
+                  <div key={groupKey} className="topic-content">
                     {/* Group Header */}
                     <div
-                      onClick={() => toggleGroup(topicName, groupName)}
-                      style={{
-                        cursor: 'pointer',
-                        backgroundColor: '#E3F2FD',
-                        color: '#1565C0',
-                        padding: '10px 14px',
-                        borderRadius: 6,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontWeight: '600',
-                        fontSize: '16px',
-                        marginBottom: 8,
-                        gap: 6
-                      }}
+                      onClick={() => toggleGroup(topicName, groupName, groupNames)}
+                      className="group-header"
                     >
-                      <AddCircleIcon onClick={() => addRecordToGroup(topicName, groupName)} />
-                      <span style={{ cursor: 'pointer', flex: 1 }}  >{groupName} ({groupRecords.length})</span>
+                      <span className="cursor-pointer flex-1">{groupName} ({groupRecords.length})</span>
                       {isGroupCollapsed ? <ExpandMoreIcon /> : <ExpandLessIcon />}
                     </div>
 
                     {/* Records within Group */}
                     {!isGroupCollapsed && (
-                      <div style={{ marginLeft: 16 }}>
+                      <div className="group-content">
                         {groupRecords.map(r => renderRecord(r))}
                       </div>
                     )}

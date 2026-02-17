@@ -14,19 +14,14 @@ const IconButtonBar = ({ setTemplateFilter, templateFilter }) => {
     <ButtonGroup
       variant="contained"
       aria-label="icon button bar"
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        gap: 4,
-        width: "100%"
-      }}
+      className="flex-between gap-4 full-width"
     >
       <Tooltip title="ToDo">
         <IconButton
           onClick={() => setTemplateFilter(templateFilter === "ToDo" ? "" : "ToDo")}
           aria-label="all"
           color={templateFilter === "ToDo" ? "primary" : "default"}
-          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 } }}
+          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 }, backgroundColor: templateFilter === "ToDo" ? "#e5edff" : "default" }}
         >
           <PlaylistAddCheckIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />
         </IconButton>
@@ -36,7 +31,7 @@ const IconButtonBar = ({ setTemplateFilter, templateFilter }) => {
           onClick={() => setTemplateFilter(templateFilter === "Project" ? "" : "Project")}
           aria-label="project"
           color={templateFilter === "Project" ? "primary" : "default"}
-          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 } }}
+          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 }, backgroundColor: templateFilter === "Project" ? "#e5edff" : "default" }}
         >
           <AccountTreeIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />
         </IconButton>
@@ -46,7 +41,7 @@ const IconButtonBar = ({ setTemplateFilter, templateFilter }) => {
           onClick={() => setTemplateFilter(templateFilter === "Tracker" ? "" : "Tracker")}
           aria-label="tracker"
           color={templateFilter === "Tracker" ? "primary" : "default"}
-          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 } }}
+          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 }, backgroundColor: templateFilter === "Tracker" ? "#e5edff" : "default" }}
         >
           <StackedLineChartIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />
         </IconButton>
@@ -56,7 +51,7 @@ const IconButtonBar = ({ setTemplateFilter, templateFilter }) => {
           onClick={() => setTemplateFilter(templateFilter === "Diary" ? "" : "Diary")}
           aria-label="diary"
           color={templateFilter === "Diary" ? "primary" : "default"}
-          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 } }}
+          sx={{ flex: "1 1 0", minWidth: 0, padding: { xs: 1, sm: 1.5 }, backgroundColor: templateFilter === "Diary" ? "#e5edff" : "default" }}
         >
           <AutoStoriesIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />
         </IconButton>

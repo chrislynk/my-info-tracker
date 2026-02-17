@@ -1,84 +1,82 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { uploadData, remove } from "aws-amplify/storage";
 import { generateClient } from "aws-amplify/data";
-import ReactMarkdown from "react-markdown";
 import { renderToStaticMarkup } from 'react-dom/server';
+
+import ReactMarkdown from "react-markdown";
 import Editor from 'react-simple-wysiwyg';
 import TurndownService from 'turndown';
+
 import IconButton from '@mui/material/IconButton'
 import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
+
 import { Amplify } from "aws-amplify";
 import outputs from "../amplify_outputs.json";
+
 import { toIsoOrNull, toLocalInputValue } from "./utils/dateUtils";
 import { parseGrouping, formatGrouping } from "./utils/groupingUtils";
 import { getTemplateIcon } from "./utils/iconUtils";
+import { useRecordForm } from "./hooks/useRecordForm";
+import { useDropdowns } from "./hooks/useDropdowns";
+
 Amplify.configure(outputs);
 
 const client = generateClient();
 
-export default function RecordForm({ templateFilter, editRecord, onCancelEdit, showForm, setShowForm }) {
+export default function RecordForm({ templateFilter, editRecord, onCancelEdit, showForm, setShowForm, selectedProject, selectedGroup }) {
+  // Custom hooks for consolidated state management
+  const { formState, setField, setMultipleFields, resetForm } = useRecordForm();
+  const { toggleDropdown,isOpen, newInputs,showNewInput,
+    hideNewInput, setNewInputValue, resetAllDropdowns} = useDropdowns();
   const [saving, setSaving] = useState(false);
   const [file, setFile] = useState(null);
-
-  const [noteHtml, setNoteHtml] = useState('');
+  const [showImageIcon, setShowImageIcon] = useState(true);
 
   const isEditMode = !!editRecord;
 
   // If templateFilter is "Project", treat it as no filter. Otherwise, use it as a hard-coded template value.
-  const effectiveTemplateFilter = templateFilter?.toLowerCase() === 'project' ? null : templateFilter;
+  const effectiveTemplateFilter = templateFilter?.toLowerCase() === 'project' ? 
+  (formState.group ? formState.project+' - '+formState.group : (formState.project ? formState.project : null)) : templateFilter;
 
   const divRef = useRef(null);
 
-  const [title, setTitle] = useState("");
-  const [start, setStart] = useState(""); // datetime-local
-  const [end, setEnd] = useState(""); // datetime-local
-  const [notes, setNotes] = useState("");
-  const [template, setTemplate] = useState("");
-  const [status, setStatus] = useState("");
-  const [project, setProject] = useState("");
-  const [group, setGroup] = useState("");
-  const [imageFile, setImageFile] = useState(null);
-
+  // State for existing data loaded from records
   const [existingProjects, setExistingProjects] = useState([]);
   const [existingGroups, setExistingGroups] = useState([]);
-  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
-  const [showGroupDropdown, setShowGroupDropdown] = useState(false);
-  const [showNewProjectInput, setShowNewProjectInput] = useState(false);
-  const [showNewGroupInput, setShowNewGroupInput] = useState(false);
-  const [newProjectInput, setNewProjectInput] = useState("");
-  const [newGroupInput, setNewGroupInput] = useState("");
   const [ungroupedGroups, setUngroupedGroups] = useState([]);
-
   const [groupsByProject, setGroupsByProject] = useState({});
+  const [existingTemplates, setExistingTemplates] = useState([]);
+  const [existingTags, setExistingTags] = useState([]);
+
+  // Computed values
   const filteredGroups = useMemo(() => {
-    const p = project.trim();
+    const p = formState.project.trim();
     if (!p) return ungroupedGroups; // no project selected => show all
     return (groupsByProject[p] ?? []).slice().sort();
-  }, [project, groupsByProject, ungroupedGroups]);
+  }, [formState.project, groupsByProject, ungroupedGroups]);
 
-  const [existingTemplates, setExistingTemplates] = useState([]);
-  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
-
-  const [existingTags, setExistingTags] = useState([]);
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [showNewTagInput, setShowNewTagInput] = useState(false);
-  const [newTagInput, setNewTagInput] = useState("");
-  const [showTagDropdown, setShowTagDropdown] = useState(false);
   const tags = useMemo(() => {
-    return selectedTags.length ? selectedTags : null;
-  }, [selectedTags]);
-  
-  const [imagePreview, setImagePreview] = useState(null);
-  const [showImageIcon, setShowImageIcon] = useState(true);
+    return formState.selectedTags.length ? formState.selectedTags : null;
+  }, [formState.selectedTags]);
 
   // Set template from effectiveTemplateFilter when not in edit mode
   useEffect(() => {
     if (!isEditMode && effectiveTemplateFilter) {
-      setTemplate(effectiveTemplateFilter);
+      setField('template', effectiveTemplateFilter);
     }
-  }, [effectiveTemplateFilter, isEditMode]);
+  }, [effectiveTemplateFilter, isEditMode, setField]);
+
+  // Set project and group from selected context when not in edit mode
+  useEffect(() => {
+    if (!isEditMode && (selectedProject !== undefined || selectedGroup !== undefined)) {
+      setMultipleFields({
+        project: selectedProject || '',
+        group: selectedGroup || ''
+      });
+    }
+  }, [selectedProject, selectedGroup, isEditMode, setMultipleFields]);
 
   useEffect(() => {
     async function loadTemplatesAndTags() {
@@ -176,33 +174,32 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
   // Populate form when editRecord changes
   useEffect(() => {
     if (editRecord) {
-      setTitle(editRecord.title ?? "");
-      setStart(toLocalInputValue(editRecord.start));
-      setEnd(toLocalInputValue(editRecord.end));
-      setNotes(editRecord.notes ?? "");
-      setNoteHtml(editRecord.notes ? renderToStaticMarkup(<ReactMarkdown>{editRecord.notes}</ReactMarkdown>) : "");
-      setSelectedTags(editRecord.tags ?? []);
-      setTemplate(editRecord.template ?? "");
-      setStatus(editRecord.status ?? "");
-
       // Parse grouping into project and group
-      if (editRecord.grouping) {
-        const { project: parsedProject, group: parsedGroup } = parseGrouping(editRecord.grouping);
-        setProject(parsedProject || "");
-        setGroup(parsedGroup || "");
-      } else {
-        setProject("");
-        setGroup("");
-      }
+      const { project: parsedProject, group: parsedGroup } = editRecord.grouping
+        ? parseGrouping(editRecord.grouping)
+        : { project: null, group: null };
 
-      setImageFile(null);
-      setImagePreview(editRecord.imageUrl ?? null);
+      setMultipleFields({
+        title: editRecord.title ?? "",
+        start: toLocalInputValue(editRecord.start),
+        end: toLocalInputValue(editRecord.end),
+        notes: editRecord.notes ?? "",
+        noteHtml: editRecord.notes ? renderToStaticMarkup(<ReactMarkdown>{editRecord.notes}</ReactMarkdown>) : "",
+        selectedTags: editRecord.tags ?? [],
+        template: editRecord.template ?? "",
+        status: editRecord.status ?? "",
+        project: parsedProject || "",
+        group: parsedGroup || "",
+        imageFile: null,
+        imagePreview: editRecord.imageUrl ?? null,
+      });
+
       // Only set showForm if setShowForm is available (not in edit mode within list)
       if (setShowForm) {
         setShowForm(true);
       }
     }
-  }, [editRecord, setShowForm]);
+  }, [editRecord, setShowForm, setMultipleFields]);
 
   async function uploadAndCreate() {
     if (!file) return;
@@ -227,33 +224,33 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
   async function onSubmit(e) {
     e.preventDefault();
 
-    if (!title.trim()) return;
+    if (!formState.title.trim()) return;
 
     setSaving(true);
     try {
       let nextImageKey = editRecord?.imageKey ?? null;
 
       // 1) upload new image if selected
-      if (imageFile && imageFile instanceof File) {
-        nextImageKey = `public/${crypto.randomUUID()}-${imageFile.name}`;
+      if (formState.imageFile && formState.imageFile instanceof File) {
+        nextImageKey = `public/${crypto.randomUUID()}-${formState.imageFile.name}`;
         await uploadData({
           path: nextImageKey,
-          data: imageFile,
-          options: { contentType: imageFile.type },
+          data: formState.imageFile,
+          options: { contentType: formState.imageFile.type },
         }).result;
       }
 
       // Combine project and group into grouping format
-      const combinedGrouping = formatGrouping(project, group);
+      const combinedGrouping = formatGrouping(formState.project, formState.group);
 
       const payload = {
-        title: title.trim(),
-        start: toIsoOrNull(start),
-        end: toIsoOrNull(end),
-        notes: notes.trim() ? notes.trim() : null,
+        title: formState.title.trim(),
+        start: toIsoOrNull(formState.start),
+        end: toIsoOrNull(formState.end),
+        notes: formState.notes.trim() ? formState.notes.trim() : null,
         tags,
-        template: template.trim() ? template.trim() : null,
-        status: status.trim() ? status.trim() : null,
+        template: formState.template.trim() ? formState.template.trim() : null,
+        status: formState.status.trim() ? formState.status.trim() : null,
         grouping: combinedGrouping,
         imageKey: nextImageKey,
       };
@@ -271,7 +268,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
         }
 
         // Delete old image if we uploaded a new one
-        if (imageFile && imageFile instanceof File && editRecord.imageKey && editRecord.imageKey !== nextImageKey) {
+        if (formState.imageFile && formState.imageFile instanceof File && editRecord.imageKey && editRecord.imageKey !== nextImageKey) {
           await remove({ path: editRecord.imageKey });
         }
       } else {
@@ -289,28 +286,8 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
       }
 
       // Reset form
-      setTitle("");
-      setStart("");
-      setEnd("");
-      setNotes("");
-      setNoteHtml("");
-      setSelectedTags([]);
-      setTemplate("");
-      setStatus("");
-      setProject("");
-      setGroup("");
-      setImageFile(null);
-      setImagePreview(null);
-      setShowNewTagInput(false);
-      setNewTagInput("");
-      setShowTagDropdown(false);
-      setShowTemplateDropdown(false);
-      setShowProjectDropdown(false);
-      setShowGroupDropdown(false);
-      setShowNewProjectInput(false);
-      setShowNewGroupInput(false);
-      setNewProjectInput("");
-      setNewGroupInput("");
+      resetForm();
+      resetAllDropdowns();
 
       // Let the list know to refresh
       window.dispatchEvent(new Event("records:changed"));
@@ -339,38 +316,17 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
     const offsetMs = now.getTimezoneOffset() * 60000;
     const localNow = new Date(now.getTime() - offsetMs)
     const localDateTime = localNow.toISOString().slice(0, 16)
-    setStart(localDateTime);
+    setField('start', localDateTime);
   }
 
   function handleCancelForm() {
-    
     divRef.current?.scrollIntoView({ top: 0, behavior: "smooth" });
     if (setShowForm) {
       setShowForm(false);
     }
     // Clear all form values
-    setTitle("");
-    setStart("");
-    setEnd("");
-    setNotes("");
-    setNoteHtml("");
-    setSelectedTags([]);
-    setTemplate("");
-    setStatus("");
-    setProject("");
-    setGroup("");
-    setImageFile(null);
-    setImagePreview(null);
-    setShowNewTagInput(false);
-    setNewTagInput("");
-    setShowTagDropdown(false);
-    setShowTemplateDropdown(false);
-    setShowProjectDropdown(false);
-    setShowGroupDropdown(false);
-    setShowNewProjectInput(false);
-    setShowNewGroupInput(false);
-    setNewProjectInput("");
-    setNewGroupInput("");
+    resetForm();
+    resetAllDropdowns();
     setShowImageIcon(true);
 
     // Call onCancelEdit if in edit mode
@@ -380,131 +336,116 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
   }
 
   function onEditChange(e) {
-    setNoteHtml(e.target.value);
+    const htmlValue = e.target.value;
     const turndownService = new TurndownService();
-    const markdown = turndownService.turndown(e.target.value)
-    setNotes(markdown)
+    const markdown = turndownService.turndown(htmlValue);
+    setMultipleFields({
+      noteHtml: htmlValue,
+      notes: markdown
+    });
   }
 
   return (
-    <div className="container" style={{ display: "flex"  }}>
+    <div className="container flex-container">
       {(showForm || isEditMode) && (
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, width: "100%" }}>
-          <div style={{ display: "grid", gap: 6 }}>
-            <label style={{ fontWeight: 600 }}>Title *</label>
-            <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+        <form onSubmit={onSubmit} className="form-grid">
+          <div className="form-group">
+            <label className="label-bold">Title *</label>
+            <div className="relative grid-auto-fit">
               <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                value={formState.title}
+                onChange={(e) => setField('title', e.target.value)}
                 placeholder="e.g., Gym session"
                 required
-                style={{ padding: 10, fontSize: "16px" }}
+                className="form-input"
               />
               {showImageIcon && (
-                <AddAPhotoIcon onClick={() => setShowImageIcon(false)} style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", color: "#999" }} />
+                <AddAPhotoIcon onClick={() => setShowImageIcon(false)} className="icon-overlay" />
               )}
             </div>
           </div>
 
-          {!showImageIcon && (<div style={{ display: "grid", gap: 4 }}>
+          {!showImageIcon && (<div className="form-group gap-4">
             <input
               id="image-upload-input"
               type="file"
               accept="image/*"
               onChange={(e) => {
                 const file = e.target.files?.[0] ?? null;
-                setImageFile(file);
+                setField('imageFile', file);
                 if (file) {
                   const reader = new FileReader();
                   reader.onloadend = () => {
-                    setImagePreview(reader.result);
+                    setField('imagePreview', reader.result);
                   };
                   reader.readAsDataURL(file);
                 } else {
-                  setImagePreview(null);
+                  setField('imagePreview', null);
                 }
               }}
               style={{ display: "none" }}
             />
             <label
               htmlFor="image-upload-input"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "2px dashed #ccc",
-                borderRadius: 8,
-                padding: 8,
-                cursor: "pointer",
-                transition: "all 0.2s"
-              }}
+              className="image-upload-label"
             >
-              {imagePreview ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              {formState.imagePreview ? (
+                <div className="image-preview-center gap-6">
                   <img
-                    src={imagePreview}
+                    src={formState.imagePreview}
                     alt="Preview"
-                    style={{
-                      maxHeight: 128,
-                      objectFit: "contain",
-                      borderRadius: 4
-                    }}
+                    className="image-preview"
                   />
-                  <div style={{ fontSize: 12, color: "#666" }}>
-                    <span style={{ fontSize: 11, color: "#999" }}> - Click to change - </span>
-                     {imageFile?.name} ({Math.round((imageFile?.size ?? 0) / 1024)} KB)
+                  <div className="image-info">
+                    <span className="text-muted" style={{ fontSize: 11 }}> - Click to change - </span>
+                     {formState.imageFile?.name} ({Math.round((formState.imageFile?.size ?? 0) / 1024)} KB)
                   </div>
-                  
+
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                <div className="flex-column flex-center gap-8">
                   <AddAPhotoIcon style={{ fontSize: 40, color: "#999" }} />
-                  <div style={{ fontSize: 14, color: "#666" }}>Add Photo</div>
+                  <div className="text-md image-info">Add Photo</div>
                 </div>
               )}
             </label>
           </div>)}
 
-          <div style={{ display: "grid", gap: 6 }}>
-            <label style={{ fontWeight: 600 }}>Notes</label>
-            <Editor value={noteHtml} onChange={onEditChange} />
+          <div className="form-group">
+            <label className="label-bold">Notes</label>
+            <Editor value={formState.noteHtml} onChange={onEditChange} />
           </div>
 
-          <div ref={divRef} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
-            <div style={{ display: "grid", gap: 6 }}>
-              <label style={{ fontWeight: 600 }}>Template</label>
-              <div style={{ position: "relative" }}>
+          <div ref={divRef} className="grid-auto-fit">
+            <div className="form-group">
+              <label className="label-bold">Template</label>
+              <div className="relative">
                 <div
-                  className="input"
+                  className="input cursor-pointer"
                   onClick={() => {
                     if (!effectiveTemplateFilter) {
-                      setShowTemplateDropdown(!showTemplateDropdown);
-                      setShowTagDropdown(false);
+                      toggleDropdown('template');
                     }
                   }}
                   style={{ cursor: effectiveTemplateFilter ? 'default' : 'pointer', opacity: effectiveTemplateFilter ? 0.7 : 1 }}
                 >
-                  {(effectiveTemplateFilter || template) ? (
-                    <div style={{ display: "flex", alignItems: "center" }}>
-                      {getTemplateIcon(effectiveTemplateFilter || template)}
-                      <span>{effectiveTemplateFilter || template}</span>
+                  {(effectiveTemplateFilter || formState.template) ? (
+                    <div className="flex-center">
+                      {getTemplateIcon(effectiveTemplateFilter || formState.template)}
+                      <span>{effectiveTemplateFilter || formState.template}</span>
                     </div>
                   ) : (
                     <span>-- Select or leave empty --</span>
                   )}
                 </div >
-                {showTemplateDropdown && !effectiveTemplateFilter && (
+                {isOpen('template') && !effectiveTemplateFilter && (
                   <div className="dropDown">
                     <div
                       onClick={() => {
-                        setTemplate("");
-                        setShowTemplateDropdown(false);
+                        setField('template', "");
+                        toggleDropdown('template');
                       }}
-                      style={{
-                        padding: "8px 12px",
-                        cursor: "pointer"
-                      }}
-                      className="dropDown"
+                      className="dropDown pad-8 cursor-pointer"
                       onMouseEnter={(e) => e.currentTarget.className = "hover"}
                         onMouseLeave={(e) => e.currentTarget.className = ""}
                     >
@@ -514,15 +455,10 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                       <div
                         key={t}
                         onClick={() => {
-                          setTemplate(t);
-                          setShowTemplateDropdown(false);
+                          setField('template', t);
+                          toggleDropdown('template');
                         }}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          padding: "8px 12px",
-                          cursor: "pointer"
-                        }}
+                        className="flex-center pad-8 cursor-pointer"
                         onMouseEnter={(e) => e.currentTarget.className = "hover"}
                         onMouseLeave={(e) => e.currentTarget.className = ""}
                       >
@@ -534,11 +470,11 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                 )}
               </div>
             </div>
-            <div style={{ display: "grid", gap: 6 }}>
-              <label style={{ fontWeight: 600 }}>Status</label>
+            <div className="form-group">
+              <label className="label-bold">Status</label>
               <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                value={formState.status}
+                onChange={(e) => setField('status', e.target.value)}
                 placeholder="-- Select or leave empty --"
                 className="input"
               >
@@ -550,56 +486,34 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
             </div>
           </div>
 
-          <div style={{ display: "grid", gap: 6 }}>
-              <label style={{ fontWeight: 600 }}>Tags</label>
-              <div style={{ position: "relative" }}>
+          <div className="form-group">
+              <label className="label-bold">Tags</label>
+              <div className="relative">
                 <div
                   onClick={() => {
-                    setShowTagDropdown(!showTagDropdown); 
-                    setShowTemplateDropdown(false);
+                    toggleDropdown('tag');
                   }}
-                  style={{
-                    border: "1px solid #ccc",
-                    borderRadius: 4,
-                    padding: 8,
-                    minHeight: 40,
-                    cursor: "pointer"
-                  }}
-                  className="input"
+                  className="input tag-container"
                 >
-                  {selectedTags.map(tag => (
+                  {formState.selectedTags.map(tag => (
                         <span
                           key={tag}
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: 4,
-                            fontSize: 12,
-                            display: "contents",
-                            alignItems: "center",
-                            gap: 4
-                          }}
+                          className="tag-chip"
                         >
                           {tag}
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedTags(selectedTags.filter(t => t !== tag));
+                              setField('selectedTags', formState.selectedTags.filter(t => t !== tag));
                             }}
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              cursor: "pointer",
-                              padding: 0,
-                              fontSize: 14,
-                              fontWeight: "bold"
-                            }}
+                            className="tag-remove-btn"
                           >
                             ×
                           </button>
                         </span>
                       ))}
-                  {selectedTags.length > 0 ? (
+                  {formState.selectedTags.length > 0 ? (
                     <div className="dropDown" style={{ display: "flex", gap: 6 }}>
                       
                     </div>
@@ -607,7 +521,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                     <span style={{ color: "#999" }}>Select tags...</span>
                   )}
                 </div>
-                {showTagDropdown && (
+                {isOpen('tag') && (
                   <div
                     className="dropDown"
                   >
@@ -619,12 +533,12 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                       >
                         <input
                           type="checkbox"
-                          checked={selectedTags.includes(tag)}
+                          checked={formState.selectedTags.includes(tag)}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setSelectedTags([...selectedTags, tag]);
+                              setField('selectedTags', [...formState.selectedTags, tag]);
                             } else {
-                              setSelectedTags(selectedTags.filter(t => t !== tag));
+                              setField('selectedTags', formState.selectedTags.filter(t => t !== tag));
                             }
                           }}
                           style={{ marginRight: 8 }}
@@ -633,28 +547,27 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                       </label>
                     ))}
                     <div>
-                      {!showNewTagInput ? (
-                        <button type="button" onClick={() => setShowNewTagInput(true)}>
+                      {!newInputs.showTagInput ? (
+                        <button type="button" onClick={() => showNewInput('Tag')}>
                           + Create new tag
                         </button>
                       ) : (
                         <div style={{ display: "flex", gap: 6 }}>
                           <input
                             type="text"
-                            value={newTagInput}
-                            onChange={(e) => setNewTagInput(e.target.value)}
+                            value={newInputs.tagValue}
+                            onChange={(e) => setNewInputValue('Tag', e.target.value)}
                             placeholder="Enter new tag"
                             autoFocus
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
                                 e.preventDefault();
-                                const trimmed = newTagInput.trim();
-                                if (trimmed && !selectedTags.includes(trimmed)) {
-                                  setSelectedTags([...selectedTags, trimmed]);
+                                const trimmed = newInputs.tagValue.trim();
+                                if (trimmed && !formState.selectedTags.includes(trimmed)) {
+                                  setField('selectedTags', [...formState.selectedTags, trimmed]);
                                   setExistingTags([...existingTags, trimmed].sort());
                                 }
-                                setNewTagInput("");
-                                setShowNewTagInput(false);
+                                hideNewInput('Tag');
                               }
                             }}
                             style={{ width: "60%" }}
@@ -662,13 +575,12 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                           <button
                             type="button"
                             onClick={() => {
-                              const trimmed = newTagInput.trim();
-                              if (trimmed && !selectedTags.includes(trimmed)) {
-                                setSelectedTags([...selectedTags, trimmed]);
+                              const trimmed = newInputs.tagValue.trim();
+                              if (trimmed && !formState.selectedTags.includes(trimmed)) {
+                                setField('selectedTags', [...formState.selectedTags, trimmed]);
                                 setExistingTags([...existingTags, trimmed].sort());
                               }
-                              setNewTagInput("");
-                              setShowNewTagInput(false);
+                              hideNewInput('Tag');
                             }}
                             className="txt-button"
                             style={{ width: "30%" }}
@@ -678,8 +590,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                           <button
                             type="button"
                             onClick={() => {
-                              setNewTagInput("");
-                              setShowNewTagInput(false);
+                              hideNewInput('Tag');
                             }}
                             style={{ padding: "4px 12px", width: "10%" }}
                           >
@@ -693,36 +604,30 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
               </div>
             </div>
             
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, padding: 6, border: "1px solid #ccc", borderRadius: 4 }}>
-            <div style={{ display: "grid", gap: 6 }}>
-              <label style={{ fontWeight: 600 }}>Project</label>
-              <div style={{ position: "relative" }}>
+          <div className="form-section-bordered">
+            <div className="form-group">
+              <label className="label-bold">Project</label>
+              <div className="relative">
                 <div
                   className="input"
                   onClick={() => {
-                    setShowProjectDropdown(!showProjectDropdown);
-                    setShowGroupDropdown(false);
-                    setShowTagDropdown(false);
-                    setShowTemplateDropdown(false);
+                    toggleDropdown('project');
                   }}
                 >
-                  {project ? (
-                    <span>{project}</span>
+                  {formState.project ? (
+                    <span>{formState.project}</span>
                   ) : (
-                    <span style={{ color: "#999" }}>-- Select or add new --</span>
+                    <span className="text-muted">-- Select or add new --</span>
                   )}
                 </div>
-                {showProjectDropdown && (
+                {isOpen('project') && (
                   <div className="dropDown">
                     <div
                       onClick={() => {
-                        setProject("");
-                        setShowProjectDropdown(false);
+                        setField('project', "");
+                        toggleDropdown('project');
                       }}
-                      style={{
-                        padding: "8px 12px",
-                        cursor: "pointer"
-                      }}
+                      className="pad-8 cursor-pointer"
                       onMouseEnter={(e) => e.currentTarget.className = "hover"}
                       onMouseLeave={(e) => e.currentTarget.className = ""}
                     >
@@ -732,14 +637,10 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                       <div
                         key={p}
                         onClick={() => {
-                          setProject(p);
-                          setGroup(""); // reset group when project changes
-                          setShowProjectDropdown(false);
+                          setMultipleFields({ project: p, group: "" });
+                          toggleDropdown('project');
                         }}
-                        style={{
-                          padding: "8px 12px",
-                          cursor: "pointer"
-                        }}
+                        className="pad-8 cursor-pointer"
                         onMouseEnter={(e) => e.currentTarget.className = "hover"}
                         onMouseLeave={(e) => e.currentTarget.className = ""}
                       >
@@ -747,37 +648,35 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                       </div>
                     ))}
                     <div style={{ borderTop: "1px solid #ccc", marginTop: 4, paddingTop: 4 }}>
-                      {!showNewProjectInput ? (
+                      {!newInputs.showProjectInput ? (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setShowNewProjectInput(true);
+                            showNewInput('Project');
                           }}
-                          style={{ width: "100%" }}
+                          className="full-width"
                         >
                           + Add new project
                         </button>
                       ) : (
-                        <div style={{ display: "flex", gap: 6, padding: "4px 8px" }}>
+                        <div className="flex-container gap-6" style={{ padding: "4px 8px" }}>
                           <input
                             type="text"
-                            value={newProjectInput}
-                            onChange={(e) => setNewProjectInput(e.target.value)}
+                            value={newInputs.projectValue}
+                            onChange={(e) => setNewInputValue('Project', e.target.value)}
                             placeholder="Enter new project"
                             autoFocus
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
                                 e.preventDefault();
-                                const trimmed = newProjectInput.trim();
+                                const trimmed = newInputs.projectValue.trim();
                                 if (trimmed) {
-                                  setProject(trimmed);
-                                  setGroup(""); // reset group when project changes
+                                  setMultipleFields({ project: trimmed, group: "" });
                                   setExistingProjects([...existingProjects, trimmed].sort());
                                 }
-                                setNewProjectInput("");
-                                setShowNewProjectInput(false);
-                                setShowProjectDropdown(false);
+                                hideNewInput('Project');
+                                toggleDropdown('project');
                               }
                             }}
                             style={{ flex: 1 }}
@@ -791,8 +690,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                                 setGroup(""); // reset group when project changes
                                 setExistingProjects([...existingProjects, trimmed].sort());
                               }
-                              setNewProjectInput("");
-                              setShowNewProjectInput(false);
+                              hideNewInput('Project');
                               setShowProjectDropdown(false);
                             }}
                             style={{ padding: "4px 8px" }}
@@ -802,8 +700,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                           <button
                             type="button"
                             onClick={() => {
-                              setNewProjectInput("");
-                              setShowNewProjectInput(false);
+                              hideNewInput('Project');
                             }}
                             style={{ padding: "4px 8px" }}
                           >
@@ -817,35 +714,29 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
               </div>
             </div>
 
-            <div style={{ display: "grid", gap: 6 }}>
-              <label style={{ fontWeight: 600 }}>Group</label>
-              <div style={{ position: "relative" }}>
+            <div className="form-group">
+              <label className="label-bold">Group</label>
+              <div className="relative">
                 <div
-                  className="input"
+                  className="input cursor-pointer"
                   onClick={() => {
-                    setShowGroupDropdown(!showGroupDropdown);
-                    setShowProjectDropdown(false);
-                    setShowTagDropdown(false);
-                    setShowTemplateDropdown(false);
+                    toggleDropdown('group');
                   }}
                 >
-                  {group ? (
-                    <span>{group}</span>
+                  {formState.group ? (
+                    <span>{formState.group}</span>
                   ) : (
-                    <span style={{ color: "#999" }}>-- Select or add new --</span>
+                    <span className="text-muted">-- Select or add new --</span>
                   )}
                 </div>
-                {showGroupDropdown && (
+                {isOpen('group') && (
                   <div className="dropDown">
                     <div
                       onClick={() => {
-                        setGroup("");
-                        setShowGroupDropdown(false);
+                        setField('group', "");
+                        toggleDropdown('group');
                       }}
-                      style={{
-                        padding: "8px 12px",
-                        cursor: "pointer"
-                      }}
+                      className="pad-8 cursor-pointer"
                       onMouseEnter={(e) => e.currentTarget.className = "hover"}
                       onMouseLeave={(e) => e.currentTarget.className = ""}
                     >
@@ -855,13 +746,10 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                       <div
                         key={g}
                         onClick={() => {
-                          setGroup(g);
-                          setShowGroupDropdown(false);
+                          setField('group', g);
+                          toggleDropdown('group');
                         }}
-                        style={{
-                          padding: "8px 12px",
-                          cursor: "pointer"
-                        }}
+                        className="pad-8 cursor-pointer"
                         onMouseEnter={(e) => e.currentTarget.className = "hover"}
                         onMouseLeave={(e) => e.currentTarget.className = ""}
                       >
@@ -869,36 +757,35 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                       </div>
                     ))}
                     <div style={{ borderTop: "1px solid #ccc", marginTop: 4, paddingTop: 4 }}>
-                      {!showNewGroupInput ? (
+                      {!newInputs.showGroupInput ? (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setShowNewGroupInput(true);
+                            showNewInput('Group');
                           }}
-                          style={{ width: "100%" }}
+                          className="full-width"
                         >
                           + Add new group
                         </button>
                       ) : (
-                        <div style={{ display: "flex", gap: 6, padding: "4px 8px" }}>
+                        <div className="flex-container gap-6" style={{ padding: "4px 8px" }}>
                           <input
                             type="text"
-                            value={newGroupInput}
-                            onChange={(e) => setNewGroupInput(e.target.value)}
+                            value={newInputs.groupValue}
+                            onChange={(e) => setNewInputValue('Group', e.target.value)}
                             placeholder="Enter new group"
                             autoFocus
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
                                 e.preventDefault();
-                                const trimmed = newGroupInput.trim();
+                                const trimmed = newInputs.groupValue.trim();
                                 if (trimmed) {
-                                  setGroup(trimmed);
+                                  setField('group', trimmed);
                                   setExistingGroups([...existingGroups, trimmed].sort());
                                 }
-                                setNewGroupInput("");
-                                setShowNewGroupInput(false);
-                                setShowGroupDropdown(false);
+                                hideNewInput('Group');
+                                toggleDropdown('group');
                               }
                             }}
                             style={{ flex: 1 }}
@@ -911,8 +798,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                                 setGroup(trimmed);
                                 setExistingGroups([...existingGroups, trimmed].sort());
                               }
-                              setNewGroupInput("");
-                              setShowNewGroupInput(false);
+                              hideNewInput('Group');
                               setShowGroupDropdown(false);
                             }}
                             style={{ padding: "4px 8px" }}
@@ -922,8 +808,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                           <button
                             type="button"
                             onClick={() => {
-                              setNewGroupInput("");
-                              setShowNewGroupInput(false);
+                              hideNewInput('Group');
                             }}
                             style={{ padding: "4px 8px" }}
                           >
@@ -938,29 +823,29 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, padding: 6, border: "1px solid #ccc", borderRadius: 4 }}>
-            <div style={{ display: "grid", gap: 6 }}>
-              <label style={{ fontWeight: 600 }}>Start</label>
+          <div className="form-section-bordered">
+            <div className="form-group">
+              <label className="label-bold">Start</label>
               <input
                 type="datetime-local"
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-                style={{ padding: 10, fontSize: "16px" }}
+                value={formState.start}
+                onChange={(e) => setField('start', e.target.value)}
+                className="form-input"
               />
             </div>
 
-            <div style={{ display: "grid", gap: 6 }}>
-              <label style={{ fontWeight: 600 }}>End</label>
+            <div className="form-group">
+              <label className="label-bold">End</label>
               <input
                 type="datetime-local"
-                value={end}
-                onChange={(e) => setEnd(e.target.value)}
-                style={{ padding: 10, fontSize: "16px" }}
+                value={formState.end}
+                onChange={(e) => setField('end', e.target.value)}
+                className="form-input"
               />
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, justifyContent: "space-between" }}>
+          <div className="flex-between gap-12">
             <button className="txt-button" disabled={saving} >
               {saving ? "Saving..." : (isEditMode ? "Update" : "Save")}
             </button>
@@ -971,7 +856,8 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
         </form>
       )}
       {!isEditMode && (
-        <div style={{ marginLeft: "auto", maxHeight: "1.5em", position: "fixed", right: 0, top: 0, zIndex: 1000 }}>
+        <div className="fixed-top-right">
+          <span >{effectiveTemplateFilter??"No template filter"}</span>
           <IconButton aria-label="close" onClick={() => showForm ? handleCancelForm() : handleShowForm()} >
             {showForm ? <CloseOutlinedIcon /> : <AddCircleIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />}
           </IconButton>

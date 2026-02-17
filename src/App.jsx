@@ -14,6 +14,8 @@ export default function App() {
   const [showForm, setShowForm] = useState(false);
   const [showHoverSearch, setShowHoverSearch] = useState(false);
   const [isScrolledPastSearch, setIsScrolledPastSearch] = useState(false);
+  const [selectedProject, setSelectedProject] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState("");
 
   useEffect(() => {
     const handleScroll = () => {
@@ -26,18 +28,13 @@ export default function App() {
   }, []);
 
   return (
-    <div style={{
-      maxWidth: 900,
-      margin: "0 auto",
-      padding: "12px",
-      fontFamily: "system-ui"
-    }}>
+    <div className="app-container">
       <div
         id="header_bar"
         onMouseEnter={() => setShowHoverSearch(true)}
         onMouseLeave={() => setShowHoverSearch(false)}
       >
-        <h1 style={{ marginTop: 0, fontSize: "clamp(1.5rem, 5vw, 2rem)" }}>Personal Tracker</h1>
+        <h1 className="page-title">Personal Tracker</h1>
       </div>
       {showHoverSearch && isScrolledPastSearch && (
         <input
@@ -47,39 +44,39 @@ export default function App() {
           value={searchItem}
           onChange={(e) => setSearchItem(e.target.value)}
           placeholder="Type to search"
-          style={{
-            padding: 10,
-            fontSize: "16px",
-            width: "calc(100% - 24px)",
-            maxWidth: 876,
-            boxSizing: "border-box",
-            position: "fixed",
-            top: 12,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 1001,
-            backgroundColor: "white",
-            border: "2px solid #1E96C8",
-            borderRadius: 4,
-            boxShadow: "0 4px 8px #1E96C8"
-          }}
+          className="search-input-fixed"
         />
       )}
-      <RecordForm templateFilter={templateFilter} showForm={showForm} setShowForm={setShowForm} />
+      <RecordForm
+        templateFilter={templateFilter}
+        showForm={showForm}
+        setShowForm={setShowForm}
+        selectedProject={selectedProject}
+        selectedGroup={selectedGroup}
+      />
       {!showForm && (
         <>
-          <div style={{ height: 16 }} />
+          <div className="spacer-md" />
           <input
             type="text"
             value={searchItem}
             onChange={(e) => setSearchItem(e.target.value)}
             placeholder="Type to search"
-            style={{ padding: 10, fontSize: "16px", width: "100%", boxSizing: "border-box", border: "1px solid #1E96C8", }}
+            className="search-input"
           />
-          <div style={{ height: 16 }} />
+          <div className="spacer-md" />
           <hr />
-          <div style={{ height: 16 }} />
-          <RecordList searchItem={searchItem} templateFilter={templateFilter} />
+          <div className="spacer-md" />
+          <RecordList
+            searchItem={searchItem}
+            templateFilter={templateFilter}
+            showForm={showForm}
+            setShowForm={setShowForm}
+            onSelectProjectGroup={(project, group) => {
+              setSelectedProject(project);
+              setSelectedGroup(group);
+            }}
+          />
         </>
       )}
       <div id="command_bar">
