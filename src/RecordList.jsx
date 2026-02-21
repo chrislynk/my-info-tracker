@@ -21,7 +21,9 @@ Amplify.configure(outputs);
 
 const client = generateClient();
 
-export default function RecordList({ searchItem, templateFilter, showForm, onSelectProjectGroup }) {
+const groupTemplates = ['Project', 'Collection', 'ToDo'];
+
+export default function RecordList({ searchItem, templateFilter, onSelectProjectGroup }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
@@ -29,6 +31,7 @@ export default function RecordList({ searchItem, templateFilter, showForm, onSel
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [collapsedTopics, setCollapsedTopics] = useState({});
   const [collapsedGroups, setCollapsedGroups] = useState({});
+  const [templateByTopic, setTemplateByTopic] = useState({});
 
   const groupRecordsByGrouping = (records) => {
     const grouped = {};
@@ -73,83 +76,82 @@ export default function RecordList({ searchItem, templateFilter, showForm, onSel
   };
 
   const toggleTopic = (topicName) => {
+    // Determine the current state first
+    const isCurrentlyCollapsed = collapsedTopics[topicName];
+
+    // If clicking on an already open topic, close it
+    if (!isCurrentlyCollapsed) {
+      setCollapsedTopics(prev => ({
+        ...prev,
+        [topicName]: true
+      }));
+      return;
+    }
+
+    // When expanding a topic, close all others and open this one
     setCollapsedTopics(prev => {
-      const isCurrentlyCollapsed = prev[topicName];
-
-      // If clicking on an already open topic, close it
-      if (!isCurrentlyCollapsed) {
-        return {
-          ...prev,
-          [topicName]: true
-        };
-      }
-
-      // When expanding a topic, set the project context for the form
-      if (onSelectProjectGroup) {
-        if (templateFilter?.toLowerCase() === 'project') {
-          onSelectProjectGroup(topicName === 'Uncategorized' ? '' : topicName, '');
-        } else if (templateFilter?.toLowerCase() === 'todo') {
-          // For todo view, only set project if topicName is not a status grouping
-          const isStatusGrouping = topicName.startsWith('* ');
-          const project = isStatusGrouping ? '' : (topicName === 'Uncategorized' ? '' : topicName);
-          onSelectProjectGroup(project, '');
-        }
-      }
-
-      // Otherwise, close all topics and open only this one
       const allCollapsed = {};
       Object.keys(prev).forEach(key => {
         allCollapsed[key] = true;
       });
-
       return {
         ...allCollapsed,
         [topicName]: false
       };
     });
+
+    // Set the project context for the form (called AFTER setState, not inside it)
+    if (onSelectProjectGroup) {
+      onSelectProjectGroup(
+        topicName.startsWith('* ') ? '' : topicName,
+        '',
+        templateFilter === 'ToDo' ? 'ToDo' : templateByTopic[topicName]
+      );
+    }
   };
 
   const toggleGroup = (topicName, groupName, allGroupNamesInTopic) => {
     const key = `${topicName}::${groupName}`;
-    setCollapsedGroups(prev => {
-      const isCurrentlyCollapsed = prev[key] ?? true;
+    const isCurrentlyCollapsed = collapsedGroups[key] ?? true;
 
-      // If clicking on an already open group, close it
-      if (!isCurrentlyCollapsed) {
-        return {
-          ...prev,
-          [key]: true
-        };
-      }
-
-      // Otherwise, close all groups in this topic and open only this one
-      const updates = {};
-      allGroupNamesInTopic.forEach(gName => {
-        const gKey = `${topicName}::${gName}`;
-        updates[gKey] = true; // Close all groups
-      });
-      updates[key] = false; // Open the clicked group
-
-      // When expanding a group, set the project/group context for the form
-      if (onSelectProjectGroup) {
-        if (templateFilter?.toLowerCase() === 'project') {
-          onSelectProjectGroup(topicName === 'Uncategorized' ? '' : topicName, groupName === 'Uncategorized' ? '' : groupName);
-        } else if (templateFilter?.toLowerCase() === 'todo') {
-          // For todo view, topicName could be "* Open" (status grouping) or an actual project name
-          // If it starts with "* ", it's a status grouping, so no project
-          // Otherwise, it's an actual project name
-          const isStatusGrouping = topicName.startsWith('* ');
-          const project = isStatusGrouping ? '' : (topicName === 'Uncategorized' ? '' : topicName);
-          const group = groupName === 'Uncategorized' ? '' : groupName;
-          onSelectProjectGroup(project, group);
-        }
-      }
-
-      return {
+    // If clicking on an already open group, close it
+    if (!isCurrentlyCollapsed) {
+      setCollapsedGroups(prev => ({
         ...prev,
-        ...updates
-      };
+        [key]: true
+      }));
+      return;
+    }
+
+    // Otherwise, close all groups in this topic and open only this one
+    const updates = {};
+    allGroupNamesInTopic.forEach(gName => {
+      const gKey = `${topicName}::${gName}`;
+      updates[gKey] = true; // Close all groups
     });
+    updates[key] = false; // Open the clicked group
+
+    setCollapsedGroups(prev => ({
+      ...prev,
+      ...updates
+    }));
+
+    // When expanding a group, set the project/group context for the form
+    // This is called AFTER setState, not inside it
+    if (onSelectProjectGroup) {
+      if (templateFilter?.toLowerCase() === 'project') {
+        onSelectProjectGroup(
+          topicName === 'Uncategorized' ? '' : topicName,
+          groupName === 'Uncategorized' ? '' : groupName,
+          templateByTopic[topicName]
+        );
+      } else if (templateFilter?.toLowerCase() === 'todo') {
+        // topicName could be "* Open" (status grouping) or project name
+        const project = topicName.startsWith('* ') ? '' : (topicName === 'Uncategorized' ? '' : topicName);
+        const group = groupName === 'Uncategorized' ? '' : groupName;
+        onSelectProjectGroup(project, group, templateFilter);
+      }
+    }
   };
 
   const toggleAllGroupsInTopic = (topicName, groupNames, shouldCollapse) => {
@@ -178,6 +180,15 @@ export default function RecordList({ searchItem, templateFilter, showForm, onSel
         }
       })
     );
+
+    const topicTemplateMap = {};
+    withUrls.forEach(record => {
+      const { project } = parseGrouping(record.grouping);
+      if (project && record.template === 'Collection') {
+        topicTemplateMap[project] = record.template;
+      }
+    });
+    setTemplateByTopic(topicTemplateMap);
 
     setRecords(withUrls);
     setLoading(false);
@@ -218,9 +229,8 @@ export default function RecordList({ searchItem, templateFilter, showForm, onSel
 
     // Collapse all topics by default when project or todo filter is active
     if (templateFilter?.toLowerCase() === 'project' || templateFilter?.toLowerCase() === 'todo') {
-      const groupedData = (templateFilter?.toLowerCase() === 'project' ?
-        groupRecordsByGrouping(items) :
-        groupRecordsByToDo(items)
+      const groupedData = ((templateFilter?.toLowerCase() === 'project' ) ? 
+        groupRecordsByGrouping(items) : groupRecordsByToDo(items)
       );
       const topicNames = Object.keys(groupedData);
 
@@ -287,7 +297,7 @@ export default function RecordList({ searchItem, templateFilter, showForm, onSel
     >
       {selectedId === r.id ? (
         editingRecord?.id === r.id ? (
-          <RecordForm templateFilter={templateFilter} editRecord={editingRecord} onCancelEdit={cancelEdit} />
+          <RecordForm editRecord={editingRecord} onCancelEdit={cancelEdit} />
         ) : (
           <> {/* Select */}
             <div className="record-header gap-8">
@@ -356,7 +366,7 @@ export default function RecordList({ searchItem, templateFilter, showForm, onSel
   // Render grouped view for project template filter
   if (templateFilter?.toLowerCase() === 'project' ||
       templateFilter?.toLowerCase() === 'todo') {
-    const groupedData = (templateFilter?.toLowerCase() === 'project' ? 
+    const groupedData = ((templateFilter?.toLowerCase() === 'project' || templateFilter?.toLowerCase() === 'collection') ? 
       groupRecordsByGrouping(filteredRecords) : 
       groupRecordsByToDo(filteredRecords)
     );

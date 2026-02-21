@@ -25,7 +25,7 @@ Amplify.configure(outputs);
 
 const client = generateClient();
 
-export default function RecordForm({ templateFilter, editRecord, onCancelEdit, showForm, setShowForm, selectedProject, selectedGroup }) {
+export default function RecordForm({ templateFilter, editRecord, onCancelEdit, showForm, setShowForm, selectedProject, selectedGroup, selectedTemplate }) {
   // Custom hooks for consolidated state management
   const { formState, setField, setMultipleFields, resetForm } = useRecordForm();
   const { toggleDropdown,isOpen, newInputs,showNewInput,
@@ -37,9 +37,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
   const isEditMode = !!editRecord;
 
   // If templateFilter is "Project", treat it as no filter. Otherwise, use it as a hard-coded template value.
-  const effectiveTemplateFilter = 
-    (templateFilter?.toLowerCase() === 'project' ? '': templateFilter) + ' ' +
-    (formState.group ? formState.project+' - '+formState.group : (formState.project ? formState.project : '')) ;
+  const effectiveTemplateFilter = templateFilter?.toLowerCase() === 'project' ? '': templateFilter;
 
   const divRef = useRef(null);
 
@@ -62,22 +60,26 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
     return formState.selectedTags.length ? formState.selectedTags : null;
   }, [formState.selectedTags]);
 
-  // Set template from effectiveTemplateFilter when not in edit mode
+  // Reset form when template filter changes (not in edit mode)
   useEffect(() => {
-    if (!isEditMode && effectiveTemplateFilter) {
-      setField('template', effectiveTemplateFilter);
+    if (!isEditMode) {
+      resetForm({
+        template: effectiveTemplateFilter || '',
+      });
+      resetAllDropdowns();
     }
-  }, [effectiveTemplateFilter, isEditMode, setField]);
+  }, [templateFilter, isEditMode, resetForm, resetAllDropdowns, effectiveTemplateFilter]);
 
   // Set project and group from selected context when not in edit mode
   useEffect(() => {
-    if (!isEditMode && (selectedProject !== undefined || selectedGroup !== undefined)) {
+    if (!isEditMode) {
       setMultipleFields({
         project: selectedProject || '',
-        group: selectedGroup || ''
+        group: selectedGroup || '',
+        template: selectedTemplate || '',
       });
     }
-  }, [selectedProject, selectedGroup, isEditMode, setMultipleFields]);
+  }, [selectedProject, selectedGroup, selectedTemplate, isEditMode, setMultipleFields]);
 
   useEffect(() => {
     async function loadTemplatesAndTags() {
@@ -111,6 +113,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
 
   useEffect(() => {
     async function loadGroupings() {
+      console.log("Loading projects and groups...");
       try {
         const { data } = await client.models.Record.list({ limit: 500 });
 
@@ -858,7 +861,8 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
       )}
       {!isEditMode && (
         <div className="fixed-top-right">
-          <span >{effectiveTemplateFilter??"No template filter"}</span>
+          <span >{(formState.template || effectiveTemplateFilter) + ' ' +
+    (formState.group ? formState.project+' - '+formState.group : (formState.project ? formState.project : ''))}</span>
           <IconButton aria-label="close" onClick={() => showForm ? handleCancelForm() : handleShowForm()} >
             {showForm ? <CloseOutlinedIcon /> : <AddCircleIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />}
           </IconButton>

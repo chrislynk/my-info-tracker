@@ -1,4 +1,3 @@
-import { uploadData, getUrl } from "aws-amplify/storage";
 import { generateClient } from "aws-amplify/data";
 import React, { useState, useEffect } from "react";
 import RecordForm from "./RecordForm";
@@ -16,6 +15,7 @@ export default function App() {
   const [isScrolledPastSearch, setIsScrolledPastSearch] = useState(false);
   const [selectedProject, setSelectedProject] = useState("");
   const [selectedGroup, setSelectedGroup] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState("");
 
   useEffect(() => {
     const handleScroll = () => {
@@ -53,6 +53,7 @@ export default function App() {
         setShowForm={setShowForm}
         selectedProject={selectedProject}
         selectedGroup={selectedGroup}
+        selectedTemplate={selectedTemplate}
       />
       {!showForm && (
         <>
@@ -70,11 +71,10 @@ export default function App() {
           <RecordList
             searchItem={searchItem}
             templateFilter={templateFilter}
-            showForm={showForm}
-            setShowForm={setShowForm}
-            onSelectProjectGroup={(project, group) => {
+            onSelectProjectGroup={(project, group, template) => {
               setSelectedProject(project);
               setSelectedGroup(group);
+              setSelectedTemplate(template??'');
             }}
           />
         </>
