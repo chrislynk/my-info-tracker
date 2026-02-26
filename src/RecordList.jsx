@@ -168,9 +168,10 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
 
   async function load() {
     setLoading(true);
-    const { data } = await client.models.Record.list({ limit: 500 })
+    const { data } = await client.models.Record.list({ limit: 500  });
+    const sortedData = (data ?? []).sort((a, b) => new Date(b.start) - new Date(a.start));
     const withUrls = await Promise.all(
-      (data ?? []).map(async (r) => {
+      (sortedData ?? []).map(async (r) => {
         if (!r.imageKey) return r;
         try {
           const { url } = await getUrl({ path: r.imageKey });
@@ -312,8 +313,9 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
               </div>
             </div>
             <div className="record-meta">
-              {r.template && <>{r.template} · </>}
-              {r.grouping && <>{r.grouping}</>}
+              {r.start && <> {new Date(r.start).toLocaleDateString()} · </>}
+              {r.template && <> {r.template} · </>}
+              {r.grouping && <> {r.grouping}</>}
               {r.status && <> ({r.status}) </>}
             </div>
             {r.imageUrl && (
@@ -348,6 +350,8 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
             </div>
           </div>
           <div className="record-meta-compact">
+            {r.start && <> {new Date(r.start).toLocaleDateString(
+              'en-US', {month: 'short', day: '2-digit'})} · </>}
             {r.template && <>{r.template} · </>}
             {r.grouping && <>{r.grouping}</>}
             {r.status && <> ({r.status}) </>}
