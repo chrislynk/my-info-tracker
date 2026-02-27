@@ -11,6 +11,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import UnfoldLessIcon from '@mui/icons-material/UnfoldLess';
 import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import AddCircleIcon from '@mui/icons-material/AddCircleOutlined';
 import RecordForm from "./RecordForm";
 import { Amplify } from "aws-amplify";
@@ -338,14 +339,14 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
         )
       ) : (
         <> {/* list-itewm */}
-          <div className="record-header gap-8">
+          <div className="record-header gap-8" onClick={() => selectId(r)}>
             <div className="record-title-wrapper">
               {getTemplateIcon(r.template, "1.2em")}
               <strong className="record-title word-break">{r.title}</strong>
             </div>
             <div className="record-actions">
               <IconButton aria-label="select" onClick={() => selectId(r)}>
-                <SpokeOutlinedIcon />
+                <MoreHorizIcon />
               </IconButton>
             </div>
           </div>

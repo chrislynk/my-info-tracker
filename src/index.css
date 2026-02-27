@@ -307,6 +307,9 @@ button:hover {
   padding: 10px;
   font-size: 16px;
   border-radius: 4px;
+  border-color: rgb(133, 133, 133);
+  border-style: solid;
+  border-width: 0.666667px;
 }
 
 .form-section-bordered {
@@ -365,7 +368,12 @@ button:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  box-shadow: rgba(30, 150, 200, 1) 0 0 .66px;
   gap: 8px;
+}
+
+.record-header:hover {
+  box-shadow: rgba(30, 150, 200, 1) 0 0 3px;
 }
 
 .record-title-wrapper {
@@ -402,6 +410,9 @@ button:hover {
   margin-top: 8px;
   white-space: pre-wrap;
   font-size: 14px;
+  max-height: 60vh;
+  overflow: auto;
+  flex: 1 1 auto;
 }
 
 .record-notes-preview {

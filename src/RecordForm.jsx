@@ -417,7 +417,8 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
 
           <div className="form-group">
             <label className="label-bold">Notes</label>
-            <Editor value={formState.noteHtml} onChange={onEditChange} />
+            <Editor containerProps={{ style: { maxHeight: '60vh', overflowY: 'auto' } }} 
+              value={formState.noteHtml} onChange={onEditChange} />
           </div>
 
           <div ref={divRef} className="grid-auto-fit">
@@ -688,14 +689,14 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                           <button
                             type="button"
                             onClick={() => {
-                              const trimmed = newProjectInput.trim();
+                              const trimmed = newInputs.projectValue.trim();
+                              console.log("Adding project:", trimmed);
                               if (trimmed) {
-                                setProject(trimmed);
-                                setGroup(""); // reset group when project changes
+                                setMultipleFields({ project: trimmed, group: "" });
                                 setExistingProjects([...existingProjects, trimmed].sort());
                               }
                               hideNewInput('Project');
-                              setShowProjectDropdown(false);
+                              toggleDropdown('project');
                             }}
                             style={{ padding: "4px 8px" }}
                           >
@@ -797,13 +798,13 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                           <button
                             type="button"
                             onClick={() => {
-                              const trimmed = newGroupInput.trim();
+                              const trimmed = newInputs.groupValue.trim();
                               if (trimmed) {
-                                setGroup(trimmed);
+                                setField('group', trimmed);
                                 setExistingGroups([...existingGroups, trimmed].sort());
                               }
                               hideNewInput('Group');
-                              setShowGroupDropdown(false);
+                              toggleDropdown('group');
                             }}
                             style={{ padding: "4px 8px" }}
                           >
