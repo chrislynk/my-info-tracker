@@ -17,7 +17,7 @@ import CollectionsIcon from '@mui/icons-material/Collections';
 export function getTemplateIcon(template, size = "1em") {
   if (!template) return null;
   const templateLower = template.toLowerCase();
-  const iconStyle = { fontSize: size, marginRight: 6 };
+  const iconStyle = { fontSize: size, marginRight: 6, marginLeft: -6 };
 
   switch (templateLower) {
     case 'todo':

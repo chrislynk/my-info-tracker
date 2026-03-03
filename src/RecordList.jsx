@@ -292,7 +292,7 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
   if (loading) return <div>Loading…</div>;
   if (!records.length) return <div>No records yet.</div>;
 
-  const renderRecord = (r) => (
+  const renderRecord = (r, isGrouped = false) => (
     <div
       key={r.id}
       className={selectedId === r.id ? "record-card-selected" : "record-card"}
@@ -305,7 +305,9 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
             <div className="record-header gap-8">
               <div className="record-title-wrapper">
                 {getTemplateIcon(r.template, "1.2em")}
-                <strong className="record-title word-break">{r.title}</strong>
+                <strong className="record-title word-break">
+                  {!isGrouped && r.grouping ? `${r.grouping}: ${r.title}` : r.title}
+                </strong>
               </div>
               <div className="record-actions">
                 <IconButton aria-label="close" onClick={() => { setSelectedId(null); }} >
@@ -342,7 +344,9 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
           <div className="record-header gap-8" onClick={() => selectId(r)}>
             <div className="record-title-wrapper">
               {getTemplateIcon(r.template, "1.2em")}
-              <strong className="record-title word-break">{r.title}</strong>
+              <strong className="record-title word-break">
+                {!isGrouped && r.grouping ? `${r.grouping}: ${r.title}` : r.title}
+              </strong>
             </div>
             <div className="record-actions">
               <IconButton aria-label="select" onClick={() => selectId(r)}>
@@ -441,7 +445,7 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
                     {/* Records within Group */}
                     {!isGroupCollapsed && (
                       <div className="group-content">
-                        {groupRecords.map(r => renderRecord(r))}
+                        {groupRecords.map(r => renderRecord(r, true))}
                       </div>
                     )}
                   </div>
