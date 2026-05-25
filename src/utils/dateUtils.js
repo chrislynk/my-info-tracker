@@ -23,3 +23,14 @@ export function toLocalInputValue(iso) {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 16);
 }
+
+/**
+ * Converts an ISO date string to a human-readable format
+ * @param {string} iso - ISO date string
+ * @returns {string} Human-readable date or empty string if invalid
+ */
+export function toReadableDate(iso) {
+  if (!iso) return "  ";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "  " : d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
+}

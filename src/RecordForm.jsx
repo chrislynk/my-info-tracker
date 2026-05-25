@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { uploadData, remove } from "aws-amplify/storage";
-import { generateClient } from "aws-amplify/data";
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import ReactMarkdown from "react-markdown";
@@ -20,9 +19,10 @@ import { parseGrouping, formatGrouping } from "./utils/groupingUtils";
 import { getTemplateIcon } from "./utils/iconUtils";
 import { useRecordForm } from "./hooks/useRecordForm";
 import { useDropdowns } from "./hooks/useDropdowns";
+import { useRecordMetadata } from "./hooks/useRecordMetadata";
+import { generateClient } from "aws-amplify/data";
 
 Amplify.configure(outputs);
-
 const client = generateClient();
 
 export default function RecordForm({ templateFilter, editRecord, onCancelEdit, showForm, setShowForm, selectedProject, selectedGroup, selectedTemplate }) {
@@ -31,8 +31,20 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
   const { toggleDropdown,isOpen, newInputs,showNewInput,
     hideNewInput, setNewInputValue, resetAllDropdowns} = useDropdowns();
   const [saving, setSaving] = useState(false);
-  const [file, setFile] = useState(null);
   const [showImageIcon, setShowImageIcon] = useState(true);
+  const {
+    templates: existingTemplates,
+    tags: existingTags,
+    projects: existingProjects,
+    groupsByProject,
+    ungroupedGroups,
+  } = useRecordMetadata();
+
+  const [availableTemplates, setAvailableTemplates] = useState([]);
+  const [availableTags, setAvailableTags] = useState([]);
+  const [availableProjects, setAvailableProjects] = useState([]);
+  const [availableGroupsByProject, setAvailableGroupsByProject] = useState({});
+  const [availableUngroupedGroups, setAvailableUngroupedGroups] = useState([]);
 
   const isEditMode = !!editRecord;
 
@@ -41,20 +53,20 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
 
   const divRef = useRef(null);
 
-  // State for existing data loaded from records
-  const [existingProjects, setExistingProjects] = useState([]);
-  const [existingGroups, setExistingGroups] = useState([]);
-  const [ungroupedGroups, setUngroupedGroups] = useState([]);
-  const [groupsByProject, setGroupsByProject] = useState({});
-  const [existingTemplates, setExistingTemplates] = useState([]);
-  const [existingTags, setExistingTags] = useState([]);
+  useEffect(() => {
+    setAvailableTemplates(existingTemplates);
+    setAvailableTags(existingTags);
+    setAvailableProjects(existingProjects);
+    setAvailableGroupsByProject(groupsByProject);
+    setAvailableUngroupedGroups(ungroupedGroups);
+  }, [existingTemplates, existingTags, existingProjects, groupsByProject, ungroupedGroups]);
 
   // Computed values
   const filteredGroups = useMemo(() => {
     const p = formState.project.trim();
-    if (!p) return ungroupedGroups; // no project selected => show all
-    return (groupsByProject[p] ?? []).slice().sort();
-  }, [formState.project, groupsByProject, ungroupedGroups]);
+    if (!p) return availableUngroupedGroups;
+    return (availableGroupsByProject[p] ?? []).slice().sort();
+  }, [formState.project, availableGroupsByProject, availableUngroupedGroups]);
 
   const tags = useMemo(() => {
     return formState.selectedTags.length ? formState.selectedTags : null;
@@ -80,100 +92,6 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
       });
     }
   }, [selectedProject, selectedGroup, selectedTemplate, isEditMode, setMultipleFields]);
-
-  useEffect(() => {
-    async function loadTemplatesAndTags() {
-      try {
-        const { data } = await client.models.Record.list({ limit: 500 });
-
-        // Extract unique templates
-        const templates = [...new Set(
-          data
-            .map(r => r.template)
-            .filter(Boolean)
-        )].sort();
-        setExistingTemplates(templates);
-
-        // Extract unique tags (flatten all tag arrays)
-        const allTags = data
-          .flatMap(r => r.tags || [])
-          .filter(Boolean);
-        const uniqueTags = [...new Set(allTags)].sort();
-        setExistingTags(uniqueTags);
-      } catch (err) {
-        console.error("Failed to load templates and tags:", err);
-      }
-    }
-
-    loadTemplatesAndTags();
-    const handler = () => loadTemplatesAndTags();
-    window.addEventListener("records:changed", handler);
-    return () => window.removeEventListener("records:changed", handler);
-  }, []);
-
-  useEffect(() => {
-    async function loadGroupings() {
-      console.log("Loading projects and groups...");
-      try {
-        const { data } = await client.models.Record.list({ limit: 500 });
-
-        // Parse groupings into project and group
-        const allProjects = [];
-        const allGroups = [];
-
-        const map = {}; // project -> Set(groups)
-        const unassigned = new Set();
-
-        data.forEach(r => {
-          if (!r.grouping) return;
-
-          const match = r.grouping.match(/^\[(.*?)\]\s*(.*)$/);
-          if (match) {
-            const [, pRaw, gRaw] = match;
-            const p = (pRaw ?? "").trim();
-            const g = (gRaw ?? "").trim();
-
-            if (p) allProjects.push(p);
-            if (g) allGroups.push(g);
-
-            if (p && g) {
-              if (!map[p]) map[p] = new Set();
-              map[p].add(g);
-            }
-          } else {
-            // no project → unassigned group
-            const g = r.grouping.trim();
-            if (g) {
-              unassigned.add(g);
-              allGroups.push(g);
-            }
-          }
-        });
-
-        const uniqueProjects = [...new Set(allProjects)].filter(Boolean).sort();
-        const uniqueGroups = [...new Set(allGroups)].filter(Boolean).sort();
-
-        // convert Set -> array
-        const normalizedMap = Object.fromEntries(
-          Object.entries(map).map(([p, set]) => [p, [...set].sort()])
-        );
-
-        setExistingProjects(uniqueProjects);
-        setExistingGroups(uniqueGroups);
-        setGroupsByProject(normalizedMap);
-
-        setUngroupedGroups([...unassigned].sort());
-
-      } catch (err) {
-        console.error("Failed to load projects and groups:", err);
-      }
-    }
-
-    loadGroupings();
-    const handler = () => loadGroupings();
-    window.addEventListener("records:changed", handler);
-    return () => window.removeEventListener("records:changed", handler);
-  }, []);
 
   // Populate form when editRecord changes
   useEffect(() => {
@@ -205,25 +123,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
     }
   }, [editRecord, setShowForm, setMultipleFields]);
 
-  async function uploadAndCreate() {
-    if (!file) return;
-
-    // 1) Upload to S3
-    const key = `public/${crypto.randomUUID()}-${file.name}`;
-
-    await uploadData({
-      path: key,
-      data: file,
-      options: { contentType: file.type },
-    }).result;
-
-    await client.models.Record.create({
-      title: "Record with image",
-      imageKey: key,
-    });
-
-    setFile(null);
-  }
+  const turndownService = useMemo(() => new TurndownService(), []);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -341,7 +241,6 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
 
   function onEditChange(e) {
     const htmlValue = e.target.value;
-    const turndownService = new TurndownService();
     const markdown = turndownService.turndown(htmlValue);
     setMultipleFields({
       noteHtml: htmlValue,
@@ -456,7 +355,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                     >
                       -- None --
                     </div>
-                    {existingTemplates.map(t => (
+                    {availableTemplates.map(t => (
                       <div
                         key={t}
                         onClick={() => {
@@ -530,7 +429,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                   <div
                     className="dropDown"
                   >
-                    {existingTags.map(tag => (
+                    {availableTags.map(tag => (
                       <label
                         key={tag}
                         onMouseEnter={(e) => e.currentTarget.className = "hover"}
@@ -570,7 +469,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                                 const trimmed = newInputs.tagValue.trim();
                                 if (trimmed && !formState.selectedTags.includes(trimmed)) {
                                   setField('selectedTags', [...formState.selectedTags, trimmed]);
-                                  setExistingTags([...existingTags, trimmed].sort());
+                                  setAvailableTags([...availableTags, trimmed].sort());
                                 }
                                 hideNewInput('Tag');
                               }
@@ -583,7 +482,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                               const trimmed = newInputs.tagValue.trim();
                               if (trimmed && !formState.selectedTags.includes(trimmed)) {
                                 setField('selectedTags', [...formState.selectedTags, trimmed]);
-                                setExistingTags([...existingTags, trimmed].sort());
+                                setAvailableTags([...availableTags, trimmed].sort());
                               }
                               hideNewInput('Tag');
                             }}
@@ -638,7 +537,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                     >
                       -- None --
                     </div>
-                    {existingProjects.map(p => (
+                    {availableProjects.map(p => (
                       <div
                         key={p}
                         onClick={() => {
@@ -678,7 +577,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                                 const trimmed = newInputs.projectValue.trim();
                                 if (trimmed) {
                                   setMultipleFields({ project: trimmed, group: "" });
-                                  setExistingProjects([...existingProjects, trimmed].sort());
+                                  setAvailableProjects([...availableProjects, trimmed].sort());
                                 }
                                 hideNewInput('Project');
                                 toggleDropdown('project');
@@ -693,7 +592,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                               console.log("Adding project:", trimmed);
                               if (trimmed) {
                                 setMultipleFields({ project: trimmed, group: "" });
-                                setExistingProjects([...existingProjects, trimmed].sort());
+                                setAvailableProjects([...availableProjects, trimmed].sort());
                               }
                               hideNewInput('Project');
                               toggleDropdown('project');
@@ -787,7 +686,14 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                                 const trimmed = newInputs.groupValue.trim();
                                 if (trimmed) {
                                   setField('group', trimmed);
-                                  setExistingGroups([...existingGroups, trimmed].sort());
+                                  if (formState.project.trim()) {
+                                    setAvailableGroupsByProject({
+                                      ...availableGroupsByProject,
+                                      [formState.project]: [...(availableGroupsByProject[formState.project] ?? []), trimmed].sort(),
+                                    });
+                                  } else {
+                                    setAvailableUngroupedGroups([...availableUngroupedGroups, trimmed].sort());
+                                  }
                                 }
                                 hideNewInput('Group');
                                 toggleDropdown('group');
@@ -801,7 +707,14 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                               const trimmed = newInputs.groupValue.trim();
                               if (trimmed) {
                                 setField('group', trimmed);
-                                setExistingGroups([...existingGroups, trimmed].sort());
+                                if (formState.project.trim()) {
+                                  setAvailableGroupsByProject({
+                                    ...availableGroupsByProject,
+                                    [formState.project]: [...(availableGroupsByProject[formState.project] ?? []), trimmed].sort(),
+                                  });
+                                } else {
+                                  setAvailableUngroupedGroups([...availableUngroupedGroups, trimmed].sort());
+                                }
                               }
                               hideNewInput('Group');
                               toggleDropdown('group');
