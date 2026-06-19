@@ -1,174 +1,217 @@
+**My Info Tracker**
 
-# Personal Info Tracker
+My Info Tracker is a personal knowledge and life-management platform built with React and AWS Amplify.
 
-A small, extensible personal record tracker built with React (Vite) and AWS Amplify Gen 2.
-It supports creating, editing, and deleting records with optional image attachments, backed by AppSync + DynamoDB and S3.
+The application combines elements of a personal knowledge base, project tracker, journal, task manager, and record system into a single flexible data model. Rather than maintaining separate applications for notes, projects, trackers, and journals, all information is stored as structured records that can be organized, searched, filtered, and connected.
 
-This project is intentionally simple at v0.x, but structured to scale cleanly.
+The project is designed as a personal “second brain” that helps capture information, track progress, record events, and preserve knowledge over time.
 
-## Features
+**Core Concepts**
 
-- Create records with: Start / End datetime,Title, Notes, Tags, Entry Template, Status, grouping info, and Image attachment.
-- Inline editing of records
-- Replace attached images safely (S3 cleanup handled)
-- Delete records (DynamoDB + S3)
-- Hosted frontend via AWS Amplify Hosting
-- Backend defined as code using Amplify Gen 2
+Everything in the system is a Record.
 
-## Tech Stack 
+Records can represent:
 
-### Frontend
+*   Projects
+    
+*   Tasks (ToDo)
+    
+*   Diary entries
+    
+*   Trackers
+    
+*   Collections
+    
+*   Lists
+    
+*   General notes
+    
 
--   React
--   Vite
--   Plain CSS (no UI framework yet)
+Each record can contain:
 
-### Backend (AWS)
+*   Title
+    
+*   Notes
+    
+*   Start and end dates
+    
+*   Status
+    
+*   Tags
+    
+*   Template type
+    
+*   Grouping information
+    
+*   Optional image attachments
+    
 
--   AWS Amplify **Gen 2**
--   AppSync (GraphQL)
--   DynamoDB (record storage)
--   S3 (image storage)
+**Current Features**
 
-### Tooling
+**Record Management**
 
--   Node.js **20 LTS**
--   AWS Amplify CLI (`ampx`)
--   GitHub (CI/CD via Amplify Hosting)
+*   Create records
+    
+*   Edit records inline
+    
+*   Delete records
+    
+*   Search records
+    
+*   Filter by template type
+    
+*   Organize by project and grouping
+    
 
-* * * * *
+**Knowledge Organization**
 
-Project Structure
------------------
+*   Structured record templates
+    
+*   Tags and categorization
+    
+*   Grouped record views
+    
+*   Project-oriented organization
+    
 
-```.
-├── amplify/
-│   ├── backend.ts              # Registers backend resources
-│   ├── data/
-│   │   └── resource.ts         # Record data model (DynamoDB/AppSync)
-│   └── storage/
-│       └── resource.ts         # S3 storage definition
-│
-├── src/
-│   ├── App.jsx
-│   ├── RecordForm.jsx
-│   ├── RecordList.jsx
-│   ├── main.jsx
-│   └── styles.css
-│
-├── amplify_outputs.json        # Generated backend config (do not edit)
-├── index.html
-├── vite.config.js
-└── package.json`
+**Media Support**
 
-```
+*   Upload image attachments
+    
+*   Replace images safely
+    
+*   Automatic cleanup of orphaned images
+    
 
-Data Model
-----------
+**Relationship System (In Development)**
 
-**Record** fields:
+Records can be linked together using explicit relationships.
 
--   `id` (generated)
--   `start` (datetime)
--   `end` (datetime)
--   `title` (required)
--   `notes`
--   `tags` (string array)
--   `template`
--   `status`
--   `group`
--   `imageKey` (S3 object path)
--   `createdAt`
--   `updatedAt`
+Examples:
 
-* * * * *
+*   Project → depends on → Research Note
+    
+*   Task → references → Project
+    
+*   Diary Entry → related to → Project
+    
+*   Tracker → part of → Collection
+    
 
-Local Development
------------------
+Relationship types currently include:
 
-### Prerequisites
+*   related\_to
+    
+*   depends\_on
+    
+*   part\_of
+    
+*   references
+    
+*   blocks
+    
+*   duplicate\_of
+    
 
--   Node.js **20 LTS**
--   AWS credentials configured\
-    (`aws sts get-caller-identity` must succeed)
+This provides the foundation for backlinks, knowledge graphs, and richer navigation across records.
 
-### Day-to-day workflow
+**Long-Term Vision**
 
-1.  Create a feature branch `git checkout -b feature/add-status-dropdown`
-1.  Make changes
-    -   Frontend changes in `src/`
-    -   Backend changes in `amplify/` (data/storage/auth)
-1.  Test locally
-    -   Backend: `npx ampx sandbox` (your personal dev backend) [AWS Amplify Documentation+1](https://docs.amplify.aws/react/deploy-and-host/sandbox-environments/setup/?utm_source=chatgpt.com)
-    -   Frontend (seperate command window): `npm run dev`
-1.  Commit + push
-`git add .` & `git commit -m "Add status dropdown"` &
-`git push -u origin feature/add-status-dropdown`
-1.  Connect the branch in Amplify Console\
-    Amplify → your app → **Branch** → connect `feature/add-status-dropdown`.
+The goal is to create a flexible personal information platform that supports:
 
-Amplify will deploy that branch separately (frontend + backend), giving you a preview URL. [AWS Amplify Documentation](https://docs.amplify.aws/react/deploy-and-host/fullstack-branching/branch-deployments/?utm_source=chatgpt.com)
+*   Knowledge management
+    
+*   Project management
+    
+*   Personal journaling
+    
+*   Habit and activity tracking
+    
+*   Information collections
+    
+*   Linked records and contextual navigation
+    
 
-1.  Merge to `main`\
-    Once you're happy, merge. Amplify redeploys `main`.
+The system is intentionally built around a single extensible data model so new use cases can be supported without creating separate applications.
 
-* * * * *
+**Technology Stack**
 
-Storage Notes
--------------
+**Frontend**
 
--   Images are uploaded to S3 under `public/*`
--   The S3 key is stored on the Record as `imageKey`
--   On image replacement:
-    1.  New image is uploaded
-    2.  Record is updated
-    3.  Old image is deleted
+*   React
+    
+*   Vite
+    
+*   JavaScript
+    
+*   CSS
+    
 
-* * * * *
+**Backend**
 
-Deployment
-----------
+*   AWS Amplify Gen 2
+    
+*   AppSync GraphQL API
+    
+*   DynamoDB
+    
+*   Amazon S3
+    
 
-Deployment is handled by **AWS Amplify Hosting**.
-Amplify builds and deploys automatically.
+**Hosting**
 
-### Publishing Updates
+*   AWS Amplify Hosting
+    
 
-`git add .` &
-`git commit -m "feat: your change"` &
-`git push`
+**Data Model**
 
-Amplify redeploys on push. You can watch this in:
-AWS Console → Amplify → Your App → main → Build logs
+**Record**
 
-* * * * *
+Primary information object.
 
-Environments & Workflow
------------------------
+Key fields:
 
--   `main` → production
--   `feature/*` → preview deployments (optional)
+*   id
+    
+*   title
+    
+*   notes
+    
+*   start
+    
+*   end
+    
+*   tags
+    
+*   template
+    
+*   status
+    
+*   grouping
+    
+*   imageKey
+    
+*   createdAt
+    
+*   updatedAt
+    
 
-Amplify Gen 2 supports **full-stack branch deployments**, allowing isolated backends per branch.
+**RecordRelationship**
 
-* * * * *
+Links records together.
 
-Security Note
--------------
+Fields:
 
-Current configuration uses **public API key access** for simplicity.
-
-Suitable for:
-
--   Personal use
--   Early prototypes
-
-* * * * *
-
-Versioning
-----------
-
-This project is currently **pre-1.0**.\
-Breaking changes may occur while the data model stabilizes.
-
-* * * * *
+*   id
+    
+*   sourceRecordId
+    
+*   targetRecordId
+    
+*   type
+    
+*   note
+    
+*   createdAt
+    
+*   updatedAt
