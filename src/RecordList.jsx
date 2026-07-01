@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { generateClient } from "aws-amplify/data";
 import { getUrl, remove } from "aws-amplify/storage";
+import { listAllRelationships } from "./utils/recordRelationships";
 import IconButton from '@mui/material/IconButton';
 import ReactMarkdown from "react-markdown";
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
@@ -45,6 +46,7 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
   const [editingRecord, setEditingRecord] = useState(null);
   const [collapsedTopics, setCollapsedTopics] = useState({});
   const [collapsedGroups, setCollapsedGroups] = useState({});
+  const [relationships, setRelationships] = useState([]);
 
   const templateByTopic = useMemo(() => {
     return records.reduce((map, record) => {
@@ -130,9 +132,15 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
     setCollapsedGroups(nextCollapsedGroups);
   }, [groupedRecords]);
 
+  const loadRelationships = async () => {
+    const data = await listAllRelationships();
+    setRelationships(data);
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
 
+    await client.models.RecordRelationship.list();
     const { data } = await client.models.Record.list({ limit: 500 });
     const sortedData = (data ?? []).sort((a, b) => new Date(b.start) - new Date(a.start));
 
@@ -150,8 +158,16 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
     setLoading(false);
   }, []);
 
+  const recordTitleById = useMemo(() => {
+    return records.reduce((map, record) => {
+      map[record.id] = record.title;
+      return map;
+    }, {});
+  }, [records]);
+
   useEffect(() => {
     load();
+    loadRelationships();
     window.addEventListener("records:changed", load);
     return () => window.removeEventListener("records:changed", load);
   }, [load]);
@@ -255,7 +271,7 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
     >
       {selectedId === record.id ? (
         editingRecord?.id === record.id ? (
-          <RecordForm editRecord={editingRecord} onCancelEdit={cancelEdit} />
+          <RecordForm editRecord={editingRecord} records={records} onCancelEdit={cancelEdit} loadRelationships={loadRelationships} />
         ) : (
           <>
             <div className="record-header gap-8">
@@ -273,10 +289,19 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
             </div>
 
             <div className="record-meta">
+              <div>
               {record.start && <> {new Date(record.start).toLocaleDateString()} · </>}
               {record.template && <> {record.template} · </>}
               {record.grouping && <> {record.grouping}</>}
               {record.status && <> ({record.status}) </>}
+              </div>
+              <div>
+                {relationships.filter(rel => rel.sourceRecordId === record.id).map(rel => (
+                  <span key={rel.id} className="relationship-tag">
+                    {rel.type} → {recordTitleById[rel.targetRecordId] ?? rel.targetRecordId}
+                  </span>
+                ))}
+              </div>
             </div>
 
             {record.imageUrl && (
@@ -320,12 +345,21 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
           </div>
 
           <div className="record-meta-compact">
-            {record.start && (
-              <> {new Date(record.start).toLocaleDateString("en-US", { month: "short", day: "2-digit" })} · </>
-            )}
-            {record.template && <>{record.template} · </>}
-            {record.grouping && <>{record.grouping}</>}
-            {record.status && <> ({record.status}) </>}
+            <div>
+              {record.start && (
+                <> {new Date(record.start).toLocaleDateString("en-US", { month: "short", day: "2-digit" })} · </>
+              )}
+              {record.template && <>{record.template} · </>}
+              {record.grouping && <>{record.grouping}</>}
+              {record.status && <> ({record.status}) </>}
+            </div>
+            <div>
+              {relationships.filter(rel => rel.sourceRecordId === record.id).map(rel => (
+                <span key={rel.id} className="relationship-tag">
+                  {rel.type} → {recordTitleById[rel.targetRecordId] ?? rel.targetRecordId}
+                </span>
+              ))}
+            </div>
           </div>
 
           <div className="record-content-flex">

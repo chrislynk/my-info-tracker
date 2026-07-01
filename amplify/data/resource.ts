@@ -15,6 +15,13 @@ const schema = a.schema({
     })
     // For initial dev you can allow public access; tighten later with auth rules
     .authorization((allow) => [allow.publicApiKey()]),
+    RecordRelationship: a.model({
+      sourceRecordId: a.id().required(),
+      targetRecordId: a.id().required(),
+      type: a.string().required(),
+      note: a.string(),
+    })
+    .authorization((allow) => [allow.publicApiKey()]),
 });
 
 export const data = defineData({

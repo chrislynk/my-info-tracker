@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { uploadData, remove } from "aws-amplify/storage";
 import { renderToStaticMarkup } from 'react-dom/server';
+import React from 'react';
 
 import ReactMarkdown from "react-markdown";
 import Editor from 'react-simple-wysiwyg';
@@ -10,6 +11,8 @@ import IconButton from '@mui/material/IconButton'
 import AddAPhotoIcon from '@mui/icons-material/AddAPhoto';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
+import DeleteIcon from '@mui/icons-material/Delete';
+import UpdateIcon from '@mui/icons-material/Update';
 
 import { Amplify } from "aws-amplify";
 import outputs from "../amplify_outputs.json";
@@ -22,10 +25,12 @@ import { useDropdowns } from "./hooks/useDropdowns";
 import { useRecordMetadata } from "./hooks/useRecordMetadata";
 import { generateClient } from "aws-amplify/data";
 
+import { createRelationship, listRelationshipsForRecord, deleteRelationship } from "./utils/recordRelationships";
+
 Amplify.configure(outputs);
 const client = generateClient();
 
-export default function RecordForm({ templateFilter, editRecord, onCancelEdit, showForm, setShowForm, selectedProject, selectedGroup, selectedTemplate }) {
+export default function RecordForm({ templateFilter, editRecord, onCancelEdit, showForm, setShowForm, selectedProject, selectedGroup, selectedTemplate, records, loadRelationships }) {
   // Custom hooks for consolidated state management
   const { formState, setField, setMultipleFields, resetForm } = useRecordForm();
   const { toggleDropdown,isOpen, newInputs,showNewInput,
@@ -52,6 +57,34 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
   const effectiveTemplateFilter = templateFilter?.toLowerCase() === 'project' ? '': templateFilter;
 
   const divRef = useRef(null);
+
+  const [relationshipType, setRelationshipType] = useState("related_to");
+  const [targetRecordId, setTargetRecordId] = useState("");
+  const [relationshipNote, setRelationshipNote] = useState("");
+  const [existingRelationships, setExistingRelationships] = useState([]);
+  const [editRelationshipId, setEditRelationshipId] = useState(null);
+
+  const loadExistingRelationships = async (recordId) => {
+    if (!recordId) {
+      setExistingRelationships([]);
+      return;
+    }
+
+    try {
+      const data = await listRelationshipsForRecord(recordId);
+      setExistingRelationships(data ?? []);
+    } catch (err) {
+      console.error("Failed to load existing relationships", err);
+    }
+  };
+
+  useEffect(() => {
+    if (formState.id) {
+      loadExistingRelationships(formState.id);
+    } else {
+      setExistingRelationships([]);
+    }
+  }, [formState.id]);
 
   useEffect(() => {
     setAvailableTemplates(existingTemplates);
@@ -102,6 +135,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
         : { project: null, group: null };
 
       setMultipleFields({
+        id: editRecord.id,
         title: editRecord.title ?? "",
         start: toLocalInputValue(editRecord.start),
         end: toLocalInputValue(editRecord.end),
@@ -210,6 +244,84 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
       setSaving(false);
     }
   }
+
+  async function onRelationshipSubmit(e) {
+    e.preventDefault();
+    if (!formState.id) {
+      alert("Save the record before adding relationships.");
+      return;
+    }
+
+    if (!targetRecordId) {
+      alert("Select a target record.");
+      return;
+    }
+
+    if (formState.id === targetRecordId) {
+      alert("A record cannot link to itself.");
+      return;
+    }
+
+    if (editRelationshipId) {
+      const { errors } = await client.models.RecordRelationship.update({
+        id: editRelationshipId,
+        sourceRecordId: formState.id,
+        targetRecordId,
+        type: relationshipType,
+        note: relationshipNote || null,
+      });
+      if (errors?.length) {
+        throw new Error(errors.map((x) => x.message).join("; "));
+      }
+    } else {
+      const { data, errors } = await createRelationship(
+        formState.id,
+        targetRecordId,
+        relationshipType,
+        relationshipNote
+      );
+
+      if (errors?.length) {
+        throw new Error(errors.map((x) => x.message).join("; "));
+      }
+      if (!data?.id) {
+        throw new Error("Create failed: no relationship returned.");
+      }
+    }
+
+    setRelationshipType("related_to");
+    setTargetRecordId("");
+    setRelationshipNote("");
+    setEditRelationshipId(null);
+
+    if (loadRelationships) {
+      await loadRelationships();
+    }
+
+    await loadExistingRelationships(formState.id);
+  };
+
+  const onDeleteRelationship = async (relationshipId) => {
+    await deleteRelationship(relationshipId);
+    await loadExistingRelationships(formState.id);  // add this
+    if (loadRelationships) {
+      await loadRelationships();                     // and this, to sync the parent
+    }
+  }
+
+  const onEditRelationship = (rel) => {
+    setEditRelationshipId(rel.id);
+    setRelationshipType(rel.type || "related_to");
+    setTargetRecordId(rel.targetRecordId || "");
+    setRelationshipNote(rel.note ?? "");
+  };
+
+  const cancelRelationshipEdit = () => {
+    setEditRelationshipId(null);
+    setRelationshipType("related_to");
+    setTargetRecordId("");
+    setRelationshipNote("");
+  };
 
   function handleShowForm() {
     if (setShowForm) {
@@ -489,7 +601,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                             className="txt-button"
                             style={{ width: "30%" }}
                           >
-                            Add
+                            
                           </button>
                           <button
                             type="button"
@@ -508,7 +620,7 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
               </div>
             </div>
             
-          <div className="form-section-bordered">
+          <div className="form-section-bordered ">
             <div className="form-group">
               <label className="label-bold">Project</label>
               <div className="relative">
@@ -762,7 +874,69 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
               />
             </div>
           </div>
-
+          
+          {isEditMode ?(<><div className="form-section-bordered relationship-row">
+            <div className="form-group">
+              <label className="label-bold">Relation</label>
+              <select
+                value={relationshipType}
+                onChange={(e) => setRelationshipType(e.target.value)}
+                className="input"
+              >
+                <option value="related_to">Related to</option>
+                <option value="depends_on">Depends on</option>
+                <option value="part_of">Part of</option>
+                <option value="references">References</option>
+                <option value="blocks">Blocks</option>
+                <option value="duplicate_of">Duplicate of</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="label-bold">Target</label>
+              <select
+                value={targetRecordId}
+                onChange={(e) => setTargetRecordId(e.target.value)}
+                className="input"
+              >
+                <option value="">Select a record</option>
+                {records
+                  .filter((record) => record.id !== editRecord?.id)
+                  .map((record) => (
+                    <option key={record.id} value={record.id}>
+                      {record.title}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="label-bold"></label>
+              <IconButton
+                aria-label="add relationship" 
+                onClick={onRelationshipSubmit}
+              >
+                <AddCircleIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />
+              </IconButton>
+            </div>
+            <>{existingRelationships.length > 0 && existingRelationships.map((rel) => {
+              const targetTitle = records.find(r => r.id === rel.targetRecordId)?.title ?? rel.targetRecordId;
+                return (<React.Fragment key={rel.targetRecordId}>
+                  <div className="form-group">
+                    <span className="input" style={{ border: '0' }}>{rel.type}</span>
+                  </div>
+                  <div className="form-group">
+                    <span className="input" style={{ border: '0' }}>{targetTitle}</span>
+                  </div>
+                  <div className="form-group">
+                    <IconButton
+                      aria-label="delete relationship"
+                      onClick={() => onDeleteRelationship(rel.id)}
+                    >
+                      <DeleteIcon sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }} />
+                    </IconButton>
+                  </div>
+                </React.Fragment>);
+              })}</>
+          </div></>): ('')}
           <div className="flex-between gap-12">
             <button className="txt-button" disabled={saving} >
               {saving ? "Saving..." : (isEditMode ? "Update" : "Save")}
