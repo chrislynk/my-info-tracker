@@ -442,7 +442,7 @@ button:hover {
 
 .record-notes {
   margin-top: 8px;
-  white-space: pre-wrap;
+  /* white-space: pre-wrap; */
   font-size: 14px;
   max-height: 60vh;
   overflow: auto;

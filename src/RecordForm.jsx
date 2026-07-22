@@ -884,11 +884,8 @@ export default function RecordForm({ templateFilter, editRecord, onCancelEdit, s
                 className="input"
               >
                 <option value="related_to">Related to</option>
-                <option value="depends_on">Depends on</option>
-                <option value="part_of">Part of</option>
-                <option value="references">References</option>
                 <option value="blocks">Blocks</option>
-                <option value="duplicate_of">Duplicate of</option>
+                <option value="depends_on">Depends on</option>
               </select>
             </div>
             <div className="form-group">

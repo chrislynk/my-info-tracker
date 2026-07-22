@@ -269,12 +269,11 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
       key={record.id}
       className={selectedId === record.id ? "record-card-selected" : "record-card"}
     >
-      {selectedId === record.id ? (
-        editingRecord?.id === record.id ? (
+      {editingRecord?.id === record.id ? (
           <RecordForm editRecord={editingRecord} records={records} onCancelEdit={cancelEdit} loadRelationships={loadRelationships} />
         ) : (
           <>
-            <div className="record-header gap-8">
+            <div className="record-header gap-8" onClick={selectedId === record.id ? undefined : () => selectId(record)}>
               <div className="record-title-wrapper">
                 {getTemplateIcon(record.template, "1.2em")}
                 <strong className="record-title word-break">
@@ -282,8 +281,8 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
                 </strong>
               </div>
               <div className="record-actions">
-                <IconButton aria-label="close" onClick={() => setSelectedId(null)}>
-                  <CloseOutlinedIcon />
+                <IconButton aria-label="close" onClick={selectedId === record.id ? () => setSelectedId(null): () => selectId(record)}>
+                  {selectedId === record.id ? <CloseOutlinedIcon /> : <MoreHorizIcon />}
                 </IconButton>
               </div>
             </div>
@@ -301,22 +300,32 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
                     {rel.type} → {recordTitleById[rel.targetRecordId] ?? rel.targetRecordId}
                   </span>
                 ))}
+                {relationships.filter(rel => rel.targetRecordId === record.id).map(rel => (
+                  <span key={rel.id} className="relationship-tag">
+                    {rel.type} → {recordTitleById[rel.sourceRecordId] ?? rel.sourceRecordId}
+                  </span>
+                ))}
               </div>
             </div>
+
+            <div className="record-content-flex">
 
             {record.imageUrl && (
               <img
                 src={record.imageUrl}
                 alt={record.title ? `Image for ${record.title}` : "Record image"}
-                className="image-full"
+                className={selectedId === record.id ? "image-full" : "image-thumbnail"}
               />
             )}
 
-            {record.notes && (
+            {selectedId === record.id ? record.notes && (
               <div className="record-notes">
                 <ReactMarkdown>{record.notes}</ReactMarkdown>
               </div>
-            )}
+            ) : record.notes && 
+              <div className="record-notes-preview">{record.notes}</div>
+            }
+            </div>
 
             <div className="record-footer">
               <IconButton aria-label="delete" onClick={() => deleteRecord(record)}>
@@ -327,53 +336,7 @@ export default function RecordList({ searchItem, templateFilter, onSelectProject
               </IconButton>
             </div>
           </>
-        )
-      ) : (
-        <>
-          <div className="record-header gap-8" onClick={() => selectId(record)}>
-            <div className="record-title-wrapper">
-              {getTemplateIcon(record.template, "1.2em")}
-              <strong className="record-title word-break">
-                {!isGrouped && record.grouping ? `${record.grouping}: ${record.title}` : record.title}
-              </strong>
-            </div>
-            <div className="record-actions">
-              <IconButton aria-label="select" onClick={() => selectId(record)}>
-                <MoreHorizIcon />
-              </IconButton>
-            </div>
-          </div>
-
-          <div className="record-meta-compact">
-            <div>
-              {record.start && (
-                <> {new Date(record.start).toLocaleDateString("en-US", { month: "short", day: "2-digit" })} · </>
-              )}
-              {record.template && <>{record.template} · </>}
-              {record.grouping && <>{record.grouping}</>}
-              {record.status && <> ({record.status}) </>}
-            </div>
-            <div>
-              {relationships.filter(rel => rel.sourceRecordId === record.id).map(rel => (
-                <span key={rel.id} className="relationship-tag">
-                  {rel.type} → {recordTitleById[rel.targetRecordId] ?? rel.targetRecordId}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="record-content-flex">
-            {record.imageUrl && (
-              <img
-                src={record.imageUrl}
-                alt={record.title ? `Image for ${record.title}` : "Record image"}
-                className="image-thumbnail"
-              />
-            )}
-            {record.notes && <div className="record-notes-preview">{record.notes}</div>}
-          </div>
-        </>
-      )}
+        )}
     </div>
   );
 
